@@ -1,0 +1,969 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory System</title>
+    <style>
+        :root {
+            --bg: #0d0d0d; --surface: #1a1a1a; --surface2: #252525; --surface3: #2f2f2f;
+            --border: #333; --text: #e0e0e0; --text-dim: #888;
+            --accent: #00d4ff; --accent2: #ff6b35; --danger: #ff4757; --success: #2ed573;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; padding: 2rem; }
+        h1 { font-size: 1.8rem; font-weight: 700; color: var(--accent); margin-bottom: 0.2rem; }
+        .subtitle { color: var(--text-dim); font-size: 0.9rem; margin-bottom: 1.5rem; }
+
+        .top-bar { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
+        .app-title { flex: 1; }
+        .app-title h1 { display: flex; align-items: center; gap: 0.5rem; }
+        .gear-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); border-radius: 8px; padding: 0.5rem; cursor: pointer; font-size: 1.1rem; transition: all 0.15s; }
+        .gear-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        .tab-nav { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; align-items: center; }
+        .tab-pill {
+            display: flex; align-items: center; gap: 0.4rem;
+            padding: 0.5rem 1rem; border-radius: 8px; cursor: pointer;
+            border: 1px solid var(--border); background: var(--surface);
+            color: var(--text-dim); font-weight: 600; font-size: 0.9rem;
+            transition: all 0.15s; user-select: none;
+        }
+        .tab-pill:hover { border-color: var(--text-dim); color: var(--text); }
+        .tab-pill.active { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.08); }
+        .tab-add-btn { background: transparent; border: 2px dashed var(--border); color: var(--text-dim); border-radius: 8px; padding: 0.5rem 1rem; cursor: pointer; font-size: 0.9rem; transition: all 0.15s; }
+        .tab-add-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        .stats { display: flex; gap: 1rem; flex-wrap: wrap; margin-left: auto; }
+        .stat { background: var(--surface); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: 8px; text-align: center; }
+        .stat-value { font-size: 1.3rem; font-weight: 700; color: var(--accent); }
+        .stat-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; }
+
+        .btn { padding: 0.55rem 1.1rem; border: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; font-weight: 600; transition: all 0.15s; }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { background: #33dfff; }
+        .btn-take { background: #1a3d2e; color: var(--success); border: 1px solid var(--success); }
+        .btn-take:hover:not(:disabled) { background: #236040; }
+        .btn-take:disabled { opacity: 0.35; cursor: not-allowed; }
+        .btn-danger { background: var(--danger); color: #fff; }
+        .btn-danger:hover { background: #ff6b7a; }
+        .btn-ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--text-dim); color: var(--text); }
+        .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.75rem; }
+
+        /* ── Tab content panels ── */
+        .panel { display: none; }
+        .panel.active { display: block; }
+        .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.75rem; }
+        .panel-title { font-size: 1.1rem; font-weight: 600; }
+        .item-count-badge { background: var(--surface2); border: 1px solid var(--border); border-radius: 20px; padding: 0.15rem 0.6rem; font-size: 0.75rem; color: var(--text-dim); }
+
+        /* ── Filament groups ── */
+        .filament-group { margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+        .group-header { display: flex; gap: 0.75rem; align-items: center; background: var(--surface); padding: 0.75rem 1rem; cursor: pointer; user-select: none; }
+        .group-header:hover { background: var(--surface2); }
+        .group-header.open { border-bottom: 1px solid var(--border); }
+        .group-toggle { color: var(--text-dim); font-size: 0.75rem; transition: transform 0.2s; flex-shrink: 0; }
+        .group-toggle.open { transform: rotate(90deg); }
+        .group-thumb { width: 38px; height: 38px; object-fit: contain; background: #fff; border-radius: 6px; flex-shrink: 0; }
+        .group-no-img { width: 38px; height: 38px; background: var(--surface2); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--text-dim); font-size: 0.8rem; flex-shrink: 0; }
+        .group-info { flex: 1; min-width: 0; }
+        .group-name { font-weight: 600; font-size: 0.95rem; }
+        .group-badges { display: flex; gap: 0.3rem; margin-top: 0.2rem; flex-wrap: wrap; }
+        .group-rolls { font-size: 1.1rem; font-weight: 700; color: var(--accent); text-align: right; flex-shrink: 0; }
+        .group-rolls-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; }
+        .group-meta { display: flex; gap: 1rem; margin-left: auto; align-items: center; flex-wrap: wrap; }
+        .group-total-val { font-size: 0.8rem; color: var(--text-dim); }
+        .group-amazon { color: var(--accent); text-decoration: none; font-size: 0.75rem; }
+        .group-amazon:hover { text-decoration: underline; }
+        .group-entries { display: none; background: var(--surface2); }
+        .group-entries.open { display: table; width: 100%; border-collapse: collapse; }
+        .sub-row { display: flex; align-items: center; padding: 0.55rem 1rem 0.55rem 2.8rem; border-top: 1px solid var(--border); gap: 0.75rem; flex-wrap: wrap; }
+        .sub-row:hover { background: var(--surface3); }
+        .sub-label { color: var(--text-dim); font-size: 0.8rem; min-width: 60px; flex-shrink: 0; }
+        .sub-value { font-size: 0.8rem; color: var(--text); }
+        .sub-actions { display: flex; gap: 0.3rem; margin-left: auto; flex-shrink: 0; }
+
+        /* ── Generic item cards (non-filament tabs) ── */
+        .item-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.5rem; }
+        .item-card:hover { border-color: #444; }
+        .item-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+        .item-card-thumb { width: 40px; height: 40px; background: var(--surface2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+        .item-card-info { flex: 1; }
+        .item-card-name { font-weight: 600; font-size: 1rem; }
+        .item-card-meta { display: flex; gap: 1rem; margin-top: 0.3rem; flex-wrap: wrap; }
+        .item-card-meta-item { font-size: 0.8rem; color: var(--text-dim); }
+        .item-card-actions { display: flex; gap: 0.3rem; }
+        .item-card-empty { text-align: center; padding: 2.5rem; color: var(--text-dim); }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-dim); }
+
+        /* ── Status badges ── */
+        .status-badge { display: inline-block; padding: 0.1rem 0.45rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; }
+        .status-full { background: #1a4d2e; color: var(--success); }
+        .status-used { background: #2d1a0a; color: var(--accent2); }
+        .status-low { background: #2d1a1a; color: var(--accent2); }
+        .status-empty { background: #2d1a1a; color: var(--danger); }
+
+        /* ── Modals ── */
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 100; align-items: center; justify-content: center; }
+        .modal-overlay.open { display: flex; }
+        .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; width: 92%; max-width: 560px; max-height: 88vh; overflow-y: auto; }
+        .modal h2 { margin-bottom: 1rem; color: var(--accent); font-size: 1.2rem; }
+        .modal h3 { margin: 1rem 0 0.5rem; font-size: 0.85rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+        .form-group.full { grid-column: 1 / -1; }
+        label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; }
+        input, select, textarea { padding: 0.5rem 0.65rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); color: var(--text); font-size: 0.88rem; width: 100%; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+        textarea { resize: vertical; }
+        .img-preview { width: 70px; height: 70px; object-fit: contain; background: #fff; border-radius: 8px; margin-top: 0.3rem; }
+        .modal-actions { display: flex; gap: 0.75rem; justify-content: flex-end; margin-top: 1.2rem; }
+
+        /* Field builder (tab config) */
+        .field-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; }
+        .field-row input { flex: 1; }
+        .field-row select { width: 100px; flex-shrink: 0; }
+        .field-rm { background: var(--danger); color: #fff; border: none; border-radius: 4px; width: 24px; height: 24px; cursor: pointer; font-size: 0.9rem; flex-shrink: 0; }
+        .add-field-btn { background: transparent; border: 1px dashed var(--border); color: var(--text-dim); border-radius: 6px; padding: 0.4rem; width: 100%; cursor: pointer; font-size: 0.8rem; }
+        .add-field-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* Tab list in settings */
+        .tab-list { display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1rem; }
+        .tab-list-item { display: flex; align-items: center; gap: 0.75rem; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem 0.8rem; }
+        .tab-list-item-icon { font-size: 1.2rem; }
+        .tab-list-item-name { flex: 1; font-weight: 600; }
+        .tab-list-item-type { font-size: 0.7rem; color: var(--text-dim); background: var(--surface3); border-radius: 4px; padding: 0.1rem 0.4rem; }
+        .tab-list-item-actions { display: flex; gap: 0.3rem; }
+
+        /* Webhooks */
+        .wh-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.75rem; }
+        .wh-header { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.4rem; }
+        .wh-name { font-weight: 600; flex: 1; }
+        .wh-url { font-size: 0.75rem; color: var(--text-dim); word-break: break-all; font-family: monospace; margin-bottom: 0.4rem; }
+        .wh-events { display: flex; gap: 0.3rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+        .wh-event { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 0.1rem 0.4rem; font-size: 0.65rem; color: var(--text-dim); }
+        .wh-actions { display: flex; gap: 0.4rem; }
+        .toggle { position: relative; width: 34px; height: 18px; flex-shrink: 0; }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider { position: absolute; inset: 0; background: var(--border); border-radius: 20px; cursor: pointer; transition: 0.2s; }
+        .toggle-slider::before { content: ''; position: absolute; width: 12px; height: 12px; left: 3px; top: 3px; background: white; border-radius: 50%; transition: 0.2s; }
+        .toggle input:checked + .toggle-slider { background: var(--accent); }
+        .toggle input:checked + .toggle-slider::before { transform: translateX(16px); }
+        .add-wh-card { border: 2px dashed var(--border); border-radius: 10px; padding: 1rem; text-align: center; cursor: pointer; color: var(--text-dim); }
+        .add-wh-card:hover { border-color: var(--accent); color: var(--accent); }
+        .test-ok { color: var(--success); font-size: 0.8rem; }
+        .test-fail { color: var(--danger); font-size: 0.8rem; }
+
+        /* Usage */
+        .usage-table { width: 100%; border-collapse: collapse; background: var(--surface); border-radius: 10px; overflow: hidden; }
+        .usage-table th { text-align: left; padding: 0.6rem 1rem; background: var(--surface2); font-size: 0.7rem; text-transform: uppercase; color: var(--text-dim); }
+        .usage-table td { padding: 0.6rem 1rem; border-top: 1px solid var(--border); font-size: 0.85rem; }
+        .usage-empty { text-align: center; padding: 2rem; color: var(--text-dim); }
+
+        .spacer { height: 1rem; }
+    </style>
+</head>
+<body>
+    <div class="top-bar">
+        <div class="app-title">
+            <h1>📦 Inventory System</h1>
+            <p class="subtitle">3D print shop inventory management</p>
+        </div>
+        <div class="stats" id="stats-bar"></div>
+        <button class="gear-btn" onclick="openTabsModal()" title="Manage Tabs">⚙️</button>
+    </div>
+
+    <!-- Tab navigation -->
+    <div class="tab-nav" id="tab-nav"></div>
+
+    <!-- ── Filaments panel ── -->
+    <div class="panel" id="panel-filaments">
+        <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+                <span class="panel-title" id="panel-filaments-title">Filaments</span>
+                <span class="item-count-badge" id="panel-filaments-count"></span>
+            </div>
+            <button class="btn btn-primary" id="panel-filaments-add-btn" onclick="openItemModal()">+ Add Filament</button>
+        </div>
+        <div id="filament-list"></div>
+        <div id="filament-empty" class="empty-state" style="display:none"><p>No filaments yet. Add your first spool!</p></div>
+    </div>
+
+    <!-- ── Generic item panels (dynamically created) ── -->
+    <div id="extra-panels"></div>
+
+    <!-- ── Usage History ── -->
+    <div class="panel" id="panel-usage">
+        <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+                <span class="panel-title">Usage History</span>
+            </div>
+        </div>
+        <div id="usage-empty" class="usage-empty" style="display:none"><p>No usage recorded yet. Pull a filament to log it.</p></div>
+        <table class="usage-table" id="usage-table" style="display:none">
+            <thead><tr><th>When</th><th>Filament</th><th>Remaining After</th></tr></thead>
+            <tbody id="usage-body"></tbody>
+        </table>
+    </div>
+
+    <!-- ── Webhooks ── -->
+    <div class="panel" id="panel-webhooks">
+        <div class="panel-header">
+            <div style="display:flex;align-items:center;gap:0.75rem">
+                <span class="panel-title">Webhooks</span>
+            </div>
+        </div>
+        <p style="color:var(--text-dim);font-size:0.85rem;margin-bottom:1rem">Fire Discord notifications, home automation, or scripts on inventory events.</p>
+        <div class="wh-list" id="wh-list"></div>
+        <div class="add-wh-card" onclick="openWhModal()">+ Add Webhook</div>
+    </div>
+
+    <!-- ── Item Add/Edit Modal ── -->
+    <div class="modal-overlay" id="item-modal">
+        <div class="modal">
+            <h2 id="item-modal-title">Add Item</h2>
+            <form id="item-form">
+                <input type="hidden" id="item-edit-id">
+                <input type="hidden" id="item-edit-source"> <!-- 'filament' or 'item' -->
+                <div id="item-form-fields" class="form-grid"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeItemModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ── Tab Management Modal ── -->
+    <div class="modal-overlay" id="tabs-modal">
+        <div class="modal" style="max-width:620px">
+            <h2>Manage Tabs</h2>
+            <div class="tab-list" id="tab-manage-list"></div>
+            <button class="add-field-btn" onclick="openNewTabForm()" id="add-tab-btn">+ Add New Tab</button>
+            <div id="new-tab-form" style="display:none;margin-top:1rem">
+                <h3 style="margin-top:0">New Tab</h3>
+                <div class="form-grid">
+                    <div class="form-group"><label>Name *</label><input type="text" id="nt-name" placeholder="e.g. Shipping Boxes"></div>
+                    <div class="form-group"><label>Icon</label><input type="text" id="nt-icon" placeholder="📦" maxlength="4"></div>
+                    <div class="form-group"><label>Color</label><input type="color" id="nt-color" value="#00d4ff" style="height:36px;padding:2px"></div>
+                    <div class="form-group"><label>Type</label>
+                        <select id="nt-type">
+                            <option value="custom">Custom (generic inventory)</option>
+                            <option value="filament">Filament (with Pull + grouping)</option>
+                        </select>
+                    </div>
+                </div>
+                <h3>Form Fields</h3>
+                <div id="nt-fields"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="cancelNewTabForm()">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveNewTab()">Create Tab</button>
+                </div>
+            </div>
+            <div class="modal-actions" style="margin-top:1rem">
+                <button type="button" class="btn btn-ghost" onclick="closeTabsModal()">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Tab Edit Modal (inline edit selected tab) ── -->
+    <div class="modal-overlay" id="tab-edit-modal">
+        <div class="modal">
+            <h2 id="tab-edit-title">Edit Tab</h2>
+            <input type="hidden" id="tab-edit-id">
+            <div class="form-grid">
+                <div class="form-group"><label>Name</label><input type="text" id="te-name"></div>
+                <div class="form-group"><label>Icon</label><input type="text" id="te-icon" maxlength="4"></div>
+                <div class="form-group"><label>Color</label><input type="color" id="te-color" style="height:36px;padding:2px"></div>
+            </div>
+            <h3>Form Fields</h3>
+            <div id="te-fields"></div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-ghost" onclick="closeTabEditModal()">Cancel</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteTab()">Delete Tab</button>
+                <button type="button" class="btn btn-primary" onclick="saveTabEdit()">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Webhook Modal ── -->
+    <div class="modal-overlay" id="wh-modal">
+        <div class="modal">
+            <h2 id="wh-modal-title">Add Webhook</h2>
+            <form id="wh-form">
+                <input type="hidden" id="wh-edit-id">
+                <div class="form-grid">
+                    <div class="form-group full"><label>Name</label><input type="text" id="wh-name" placeholder="My Discord webhook"></div>
+                    <div class="form-group full"><label>URL *</label><input type="url" id="wh-url" required placeholder="https://..."></div>
+                    <div class="form-group full"><label>Events</label>
+                        <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.3rem;">
+                            <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="filament_added" checked> Added</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="filament_updated" checked> Updated</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="filament_deleted" checked> Deleted</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="filament_taken" checked> Pulled</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="item_added" checked> Item Added</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="item_updated" checked> Item Updated</label>
+                            <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="item_deleted" checked> Item Deleted</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-ghost" onclick="closeWhModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // ── State ───────────────────────────────────────────────────────────────────
+        let inventory = {};   // slug -> tab data
+        let tabs = [];       // all tab definitions
+        let activeTab = null;
+        let webhooks = [];
+        let usageLog = [];
+
+        // ── Load ────────────────────────────────────────────────────────────────
+        async function load() {
+            const [inv, w, u] = await Promise.all([
+                fetch('/api/inventory').then(r => r.json()),
+                fetch('/api/webhooks').then(r => r.json()),
+                fetch('/api/usage').then(r => r.json()).catch(() => [])
+            ]);
+            inventory = inv;
+            webhooks = w;
+            usageLog = u;
+            tabs = Object.values(inventory).map(t => ({ id: t.id, name: t.name, slug: t.slug, icon: t.icon, color: t.color, tab_type: t.tab_type, fields: t.fields }));
+            renderTabNav();
+            renderActivePanel();
+            renderWebhooks();
+            renderUsage();
+            updateStats();
+        }
+
+        // ── Tab navigation ──────────────────────────────────────────────────────
+        function renderTabNav() {
+            const nav = document.getElementById('tab-nav');
+            const tabBar = ['filaments', 'usage', 'webhooks'];
+            nav.innerHTML = tabs.map(t => {
+                const cls = activeTab === t.slug ? 'tab-pill active' : 'tab-pill';
+                return `<div class="${cls}" data-tab="${t.slug}" onclick="switchTab('${t.slug}')">
+                    <span>${t.icon}</span><span>${t.name}</span>
+                </div>`;
+            }).join('') + `<div class="tab-add-btn" onclick="openTabsModal()">+ Tab</div>`;
+
+            // Also pre-build extra panels for non-filament tabs
+            buildExtraPanels();
+        }
+
+        function buildExtraPanels() {
+            const container = document.getElementById('extra-panels');
+            container.innerHTML = '';
+            tabs.filter(t => t.tab_type !== 'filament').forEach(t => {
+                const div = document.createElement('div');
+                div.className = 'panel';
+                div.id = `panel-${t.slug}`;
+                div.innerHTML = `
+                    <div class="panel-header">
+                        <div style="display:flex;align-items:center;gap:0.75rem">
+                            <span class="panel-title">${esc(t.name)}</span>
+                            <span class="item-count-badge" id="panel-${t.slug}-count"></span>
+                        </div>
+                        <button class="btn btn-primary" onclick="openItemModal('${t.slug}')">+ Add ${esc(t.name)}</button>
+                    </div>
+                    <div id="panel-${t.slug}-list"></div>
+                    <div id="panel-${t.slug}-empty" class="item-card-empty" style="display:none"><p>No items in this category yet.</p></div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function switchTab(slug) {
+            activeTab = slug;
+            document.querySelectorAll('.tab-pill').forEach(p => p.classList.remove('active'));
+            const pill = document.querySelector(`.tab-pill[data-tab="${slug}"]`);
+            if (pill) pill.classList.add('active');
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+            const panel = document.getElementById(`panel-${slug}`) || document.getElementById(`panel-${slug === 'filaments' ? 'filaments' : slug}`);
+            if (panel) panel.classList.add('active');
+            renderActivePanel();
+            updateStats();
+        }
+
+        function renderActivePanel() {
+            if (!activeTab) activeTab = 'filaments';
+            if (activeTab === 'usage' || activeTab === 'webhooks') return;
+
+            const tab = inventory[activeTab];
+            if (!tab) return;
+
+            if (tab.tab_type === 'filament') {
+                renderFilamentPanel(tab);
+            } else {
+                renderGenericPanel(tab);
+            }
+
+            // Update panel title and count
+            const titleEl = document.getElementById(`panel-${activeTab}-title`) || document.querySelector(`#panel-${activeTab} .panel-title`);
+            if (titleEl) titleEl.textContent = tab.name;
+            const countEl = document.getElementById(`panel-${activeTab}-count`);
+            if (countEl) {
+                const stock = tab.items.filter(i => i.status !== 'used' && i.status !== 'empty')
+                    .reduce((s, i) => s + (i.quantity || 1), 0);
+                countEl.textContent = stock + ' in stock';
+            }
+        }
+
+        // ── Filament panel ───────────────────────────────────────────────────────
+        function renderFilamentPanel(tab) {
+            const list = document.getElementById('filament-list');
+            const empty = document.getElementById('filament-empty');
+            const items = tab.items || [];
+            if (!items.length) {
+                list.innerHTML = ''; empty.style.display = 'block';
+                document.getElementById('panel-filaments-count').textContent = '';
+                return;
+            }
+            empty.style.display = 'none';
+
+            // Group by brand+color
+            const groups = {};
+            items.forEach(f => {
+                const key = ((f.brand||'') + '||' + (f.color||'')).toLowerCase();
+                if (!groups[key]) groups[key] = { brand: f.brand, color: f.color, entries: [], image_url: f.image_url, amazon_url: f.amazon_url };
+                groups[key].entries.push(f);
+            });
+
+            const sortedKeys = Object.keys(groups).sort((a, b) => {
+                const aS = groups[a].entries.reduce((s,e) => s + (e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
+                const bS = groups[b].entries.reduce((s,e) => s + (e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
+                return aS - bS;
+            });
+
+            list.innerHTML = sortedKeys.map(key => {
+                const g = groups[key];
+                const totalRolls = g.entries.reduce((s,e) => s+(e.quantity||1), 0);
+                const stockRolls = g.entries.reduce((s,e) => s+(e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
+                const totalValue = g.entries.reduce((s,e) => s+(parseFloat(e.total_price)||0), 0);
+                const perRoll = totalRolls > 0 ? (totalValue / totalRolls).toFixed(2) : 0;
+                const imgHtml = g.image_url
+                    ? `<img src="/api/proxy/image?url=${encodeURIComponent(g.image_url)}" class="group-thumb" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                    : `<div class="group-no-img">🧵</div>`;
+                const amaHtml = g.amazon_url ? `<a href="${esc(g.amazon_url)}" class="group-amazon" target="_blank">🔗 Amazon</a>` : '';
+                const pullBtn = stockRolls > 0
+                    ? `<button class="btn btn-take btn-sm" onclick="pullFromGroup('${key}')">Pull 1 (€${perRoll}/roll)</button>`
+                    : '';
+
+                const subRows = g.entries.map(e => {
+                    const age = e.purchase_date ? Math.floor((new Date()-new Date(e.purchase_date))/(1000*60*60*24*30)) + ' mo ago' : '—';
+                    const perEntryPrice = (parseFloat(e.total_price||0)/(e.quantity||1)).toFixed(2);
+                    const reorderCls = e.reorder_date ? (e.reorder_date < today ? 'style="color:var(--danger)"' : 'style="color:var(--accent2)"') : '';
+                    return `<div class="sub-row">
+                        <span class="sub-label">${e.status}</span>
+                        <span class="sub-value">${e.quantity||1} roll${(e.quantity||1)!==1?'s':''} · €${parseFloat(e.total_price||0).toFixed(2)} (€${perEntryPrice}/roll)</span>
+                        <span class="sub-value">${e.purchase_date||''}</span>
+                        <span class="sub-value">${age}</span>
+                        <span class="sub-value" ${reorderCls}>${e.reorder_date||''}</span>
+                        <span class="sub-label">${e.notes?esc(e.notes):''}</span>
+                        <span class="sub-actions">
+                            <button class="btn btn-ghost btn-sm" onclick="editFilament(${e.id})">Edit</button>
+                            <button class="btn btn-ghost btn-sm" onclick="rescrapeImage(${e.id})">Scrape</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteFilament(${e.id})">Del</button>
+                        </span>
+                    </div>`;
+                }).join('');
+
+                return `<div class="filament-group" id="grp-${key.replace(/[^a-z0-9]/gi,'_')}">
+                    <div class="group-header" onclick="toggleGroup('${key.replace(/[^a-z0-9]/gi,'_')}')">
+                        <span class="group-toggle" id="tg-${key.replace(/[^a-z0-9]/gi,'_')}">▶</span>
+                        ${imgHtml}
+                        <div class="group-info">
+                            <div class="group-name">${esc(g.brand||'')} — ${esc(g.color||'')}</div>
+                            <div class="group-badges">${g.entries.map(e => `<span class="status-badge status-${e.status}">${e.status}</span>`).join(' ')}</div>
+                        </div>
+                        <div class="group-meta">${amaHtml}</div>
+                        <div style="text-align:right;flex-shrink:0">
+                            <div class="group-rolls">${stockRolls}<span class="group-rolls-label"> in stock</span></div>
+                        </div>
+                        ${pullBtn}
+                    </div>
+                    <div class="group-entries" id="ent-${key.replace(/[^a-z0-9]/gi,'_')}">${subRows}</div>
+                </div>`;
+            }).join('');
+
+            // Update count badge
+            const stockTotal = items.filter(i => i.status !== 'used' && i.status !== 'empty').reduce((s,i) => s+(i.quantity||1), 0);
+            document.getElementById('panel-filaments-count').textContent = stockTotal + ' in stock';
+        }
+
+        function toggleGroup(key) {
+            const entries = document.getElementById('ent-' + key);
+            const toggle = document.getElementById('tg-' + key);
+            const header = document.getElementById('grp-' + key);
+            if (!entries || !toggle || !header) return;
+            const isOpen = entries.classList.toggle('open');
+            toggle.classList.toggle('open', isOpen);
+            header.querySelector('.group-header').classList.toggle('open', isOpen);
+        }
+
+        // ── Generic item panel ───────────────────────────────────────────────────
+        function renderGenericPanel(tab) {
+            const listEl = document.getElementById(`panel-${tab.slug}-list`);
+            const emptyEl = document.getElementById(`panel-${tab.slug}-empty`);
+            const items = tab.items || [];
+            if (!items.length) {
+                if (listEl) listEl.innerHTML = '';
+                if (emptyEl) emptyEl.style.display = 'block';
+                return;
+            }
+            if (emptyEl) emptyEl.style.display = 'none';
+
+            const fields = tab.fields || [];
+            const nameField = fields.find(f => ['name','title','product_name','item_name'].includes(f.key));
+
+            listEl.innerHTML = items.map(item => {
+                const perItemPrice = item._per_item_price || 0;
+                const stock = item.status !== 'used' && item.status !== 'empty' ? (item.quantity || 1) : 0;
+                let metaHtml = `
+                    <span class="item-card-meta-item">${item.quantity||1} in stock</span>
+                    ${perItemPrice ? `<span class="item-card-meta-item">€${perItemPrice}/item</span>` : ''}
+                    <span class="status-badge status-${item.status||'full'}">${item.status||'full'}</span>
+                `;
+
+                // Show extra_data fields
+                const extra = item.extra_data || (item._extra || {});
+                fields.filter(f => f.key !== 'name' && f.key !== 'quantity' && f.key !== 'total_price' && f.key !== 'status').forEach(f => {
+                    const val = extra[f.key] || item[f.key];
+                    if (val) metaHtml += `<span class="item-card-meta-item">${esc(String(val))}</span>`;
+                });
+
+                return `<div class="item-card">
+                    <div class="item-card-header">
+                        <div class="item-card-thumb">${tab.icon||'📦'}</div>
+                        <div class="item-card-info">
+                            <div class="item-card-name">${esc(nameField ? (extra[f.key] || item[f.key] || item.name) : (item.name || item.brand + ' ' + item.color))}</div>
+                            <div class="item-card-meta">${metaHtml}</div>
+                        </div>
+                        <div class="item-card-actions">
+                            <button class="btn btn-ghost btn-sm" onclick="editItem(${item.id},'${tab.slug}')">Edit</button>
+                            <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id},'${tab.slug}')">Del</button>
+                        </div>
+                    </div>
+                </div>`;
+            }).join('');
+        }
+
+        // ── Stats ────────────────────────────────────────────────────────────────
+        function updateStats() {
+            const allItems = Object.values(inventory).flatMap(t => t.items || []);
+            const totalRolls = allItems.reduce((s,i) => s+(i.quantity||1), 0);
+            const lowEmpty = allItems.filter(i => i.status === 'low' || i.status === 'empty').length;
+            const totalValue = allItems.reduce((s,i) => s+(parseFloat(i.total_price)||0), 0);
+            const slugCount = Object.keys(inventory).length;
+            document.getElementById('stats-bar').innerHTML = `
+                <div class="stat"><div class="stat-value">${totalRolls}</div><div class="stat-label">Total Units</div></div>
+                <div class="stat"><div class="stat-value">${lowEmpty}</div><div class="stat-label">Low/Empty</div></div>
+                <div class="stat"><div class="stat-value">€${totalValue.toFixed(0)}</div><div class="stat-label">Total Value</div></div>
+                <div class="stat"><div class="stat-value">${slugCount}</div><div class="stat-label">Categories</div></div>
+            `;
+        }
+
+        function esc(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+        const today = new Date().toISOString().split('T')[0];
+
+        // ── Pull from oldest ─────────────────────────────────────────────────────
+        async function pullFromGroup(key) {
+            const tab = inventory['filaments'];
+            if (!tab) return;
+            const candidates = tab.items.filter(f => {
+                const k = ((f.brand||'') + '||' + (f.color||'')).toLowerCase();
+                return k === key && f.status !== 'used' && f.status !== 'empty' && (f.quantity||1) > 0;
+            }).sort((a, b) => {
+                if (!a.purchase_date && !b.purchase_date) return 0;
+                if (!a.purchase_date) return 1; if (!b.purchase_date) return -1;
+                return new Date(a.purchase_date) - new Date(b.purchase_date);
+            });
+            if (!candidates.length) return;
+            await takeOneFilament(candidates[0].id);
+        }
+
+        async function takeOneFilament(id) {
+            const res = await fetch(`/api/filaments/${id}/take-one`, { method: 'POST' });
+            if (res.ok) load();
+            else alert('Pull failed: ' + res.status);
+        }
+
+        async function rescrapeImage(id) {
+            const res = await fetch(`/api/filaments/${id}/scrape-image`, { method: 'POST' });
+            if (res.ok) load();
+            else alert('Scrape failed: ' + res.status);
+        }
+
+        // ── Filament CRUD ───────────────────────────────────────────────────────
+        async function editFilament(id) {
+            const tab = inventory['filaments'];
+            const f = tab?.items?.find(x => x.id === id);
+            if (f) openItemModal('filaments', f);
+        }
+
+        async function deleteFilament(id) {
+            if (!confirm('Delete this entry?')) return;
+            await fetch(`/api/filaments/${id}`, { method: 'DELETE' });
+            load();
+        }
+
+        // ── Generic item CRUD ───────────────────────────────────────────────────
+        async function editItem(id, tabSlug) {
+            const tab = inventory[tabSlug];
+            const item = tab?.items?.find(x => x.id === id);
+            if (item) openItemModal(tabSlug, item);
+        }
+
+        async function deleteItem(id, tabSlug) {
+            if (!confirm('Delete this item?')) return;
+            await fetch(`/api/items/${id}`, { method: 'DELETE' });
+            load();
+        }
+
+        // ── Item modal ──────────────────────────────────────────────────────────
+        function openItemModal(tabSlug, item = null) {
+            document.getElementById('item-modal').classList.add('open');
+            const tab = inventory[tabSlug];
+            document.getElementById('item-edit-id').value = item ? item.id : '';
+            document.getElementById('item-edit-source').value = tab.tab_type === 'filament' ? 'filament' : 'item';
+            document.getElementById('item-modal-title').textContent = item ? `Edit ${tab.name} Entry` : `Add ${tab.name}`;
+            buildItemForm(tab, item);
+        }
+
+        function closeItemModal() {
+            document.getElementById('item-modal').classList.remove('open');
+        }
+
+        function buildItemForm(tab, item = null) {
+            const container = document.getElementById('item-form-fields');
+            const fields = tab.fields || [];
+            const isFilament = tab.tab_type === 'filament';
+            container.innerHTML = '';
+
+            fields.forEach(f => {
+                const val = item ? (item[f.key] || (item.extra_data ? (JSON.parse(item.extra_data)[f.key] || '') : '')) : '';
+                const required = f.required ? 'required' : '';
+                const div = document.createElement('div');
+                div.className = 'form-group' + (f.type === 'textarea' ? ' full' : '');
+
+                if (f.type === 'select') {
+                    div.innerHTML = `<label>${f.label}${f.required?' *':''}</label>
+                        <select id="fld-${f.key}" ${required}>
+                            ${(f.options||[]).map(o => `<option value="${o}" ${val===o?'selected':''}>${o}</option>`).join('')}
+                        </select>`;
+                } else if (f.type === 'textarea') {
+                    div.innerHTML = `<label>${f.label}${f.required?' *':''}</label>
+                        <textarea id="fld-${f.key}" rows="2" ${required}>${esc(val)}</textarea>`;
+                } else if (f.type === 'url') {
+                    const cb = f.key === 'amazon_url' ? 'onAmazonUrlChange()' : f.key === 'image_url' ? 'onImageUrlChange()' : '';
+                    div.innerHTML = `<label>${f.label}${f.required?' *':''}</label>
+                        <input type="url" id="fld-${f.key}" value="${esc(val)}" ${required} onchange="${cb}">`;
+                } else {
+                    div.innerHTML = `<label>${f.label}${f.required?' *':''}</label>
+                        <input type="${f.type||'text'}" id="fld-${f.key}" value="${esc(val)}" ${required}>`;
+                }
+                container.appendChild(div);
+            });
+
+            // Add image preview for filament type
+            if (isFilament) {
+                const imgDiv = document.createElement('div');
+                imgDiv.className = 'form-group full';
+                imgDiv.innerHTML = `<label>Image Preview</label>
+                    <img id="img-preview" style="display:none;width:70px;height:70px;object-fit:contain;background:#fff;border-radius:8px">`;
+                container.appendChild(imgDiv);
+                const imgVal = item?.image_url || '';
+                if (imgVal) {
+                    const img = document.getElementById('img-preview');
+                    img.src = '/api/proxy/image?url=' + encodeURIComponent(imgVal);
+                    img.style.display = 'block';
+                }
+            }
+        }
+
+        function onAmazonUrlChange() {
+            const url = document.getElementById('fld-amazon_url')?.value || '';
+            const imgField = document.getElementById('fld-image_url');
+            if (url && imgField && !imgField.value) {
+                const asin = url.match(/\/(dp|gp\/product|product)\/([A-Z0-9]{10})/);
+                if (asin) {
+                    imgField.value = `https://m.media-amazon.com/images/I/${asin[2]}._SL1500_.jpg`;
+                    const preview = document.getElementById('img-preview');
+                    if (preview) { preview.src = '/api/proxy/image?url=' + encodeURIComponent(imgField.value); preview.style.display = 'block'; }
+                }
+            }
+        }
+
+        function onImageUrlChange() {
+            const url = document.getElementById('fld-image_url')?.value || '';
+            const preview = document.getElementById('img-preview');
+            if (preview) {
+                if (url) { preview.src = '/api/proxy/image?url=' + encodeURIComponent(url); preview.style.display = 'block'; }
+                else preview.style.display = 'none';
+            }
+        }
+
+        document.getElementById('item-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('item-edit-id').value;
+            const source = document.getElementById('item-edit-source').value;
+            const tab = inventory[activeTab] || Object.values(inventory)[0];
+            const fields = tab.fields || [];
+
+            // Collect all field values as a flat object
+            const body = { tab_id: tab.id };
+            fields.forEach(f => {
+                const el = document.getElementById('fld-' + f.key);
+                if (el) body[f.key] = el.value;
+            });
+
+            const url = source === 'filament'
+                ? (id ? `/api/filaments/${id}` : '/api/filaments')
+                : (id ? `/api/items/${id}` : '/api/items');
+            const method = id ? (source === 'filament' ? 'PUT' : 'PUT') : 'POST';
+
+            const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
+            if (res.ok) { closeItemModal(); load(); }
+            else { const err = await res.text(); alert('Save failed: ' + err); }
+        };
+
+        // ── Tab management ───────────────────────────────────────────────────────
+        function openTabsModal() {
+            document.getElementById('tabs-modal').classList.add('open');
+            renderTabManageList();
+        }
+        function closeTabsModal() { document.getElementById('tabs-modal').classList.remove('open'); cancelNewTabForm(); }
+        function cancelNewTabForm() { document.getElementById('new-tab-form').style.display = 'none'; document.getElementById('add-tab-btn').style.display = ''; }
+
+        function openNewTabForm() {
+            document.getElementById('new-tab-form').style.display = 'block';
+            document.getElementById('add-tab-btn').style.display = 'none';
+            document.getElementById('nt-name').value = '';
+            document.getElementById('nt-icon').value = '📦';
+            document.getElementById('nt-color').value = '#00d4ff';
+            document.getElementById('nt-type').value = 'custom';
+            renderNewTabFieldList([]);
+        }
+
+        function renderNewTabFieldList(fields) {
+            const container = document.getElementById('nt-fields');
+            container.innerHTML = fields.map((f, i) => fieldRowHtml(f, i)).join('')
+                + `<button class="add-field-btn" onclick="addFieldRow()">+ Add Field</button>`;
+        }
+
+        function fieldRowHtml(f, i) {
+            return `<div class="field-row" data-idx="${i}">
+                <input type="text" placeholder="Key (e.g. brand)" value="${esc(f.key||'')}" class="f-key">
+                <input type="text" placeholder="Label" value="${esc(f.label||'')}" class="f-label">
+                <select class="f-type">
+                    <option value="text" ${f.type==='text'?'selected':''}>Text</option>
+                    <option value="number" ${f.type==='number'?'selected':''}>Number</option>
+                    <option value="date" ${f.type==='date'?'selected':''}>Date</option>
+                    <option value="url" ${f.type==='url'?'selected':''}>URL</option>
+                    <option value="textarea" ${f.type==='textarea'?'selected':''}>Textarea</option>
+                </select>
+                <input type="checkbox" class="f-required" ${f.required?'checked':''} title="Required">
+                <button class="field-rm" onclick="removeFieldRow(this)">×</button>
+            </div>`;
+        }
+
+        function addFieldRow() {
+            const container = document.getElementById('nt-fields');
+            const last = container.querySelector('.add-field-btn');
+            const div = document.createElement('div');
+            div.className = 'field-row';
+            div.innerHTML = fieldRowHtml({key:'',label:'',type:'text',required:false}, -1);
+            container.insertBefore(div, last);
+        }
+
+        function removeFieldRow(btn) {
+            btn.closest('.field-row').remove();
+        }
+
+        async function saveNewTab() {
+            const name = document.getElementById('nt-name').value.trim();
+            if (!name) { alert('Tab name required'); return; }
+
+            const fields = collectFieldRows('nt-fields');
+            const res = await fetch('/api/tabs', {
+                method: 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    name, icon: document.getElementById('nt-icon').value || '📦',
+                    color: document.getElementById('nt-color').value,
+                    tab_type: document.getElementById('nt-type').value,
+                    fields
+                })
+            });
+            if (res.ok) { closeTabsModal(); load(); }
+            else alert('Failed to create tab: ' + await res.text());
+        }
+
+        function renderTabManageList() {
+            const list = document.getElementById('tab-manage-list');
+            list.innerHTML = tabs.map(t => `
+                <div class="tab-list-item">
+                    <span class="tab-list-item-icon">${t.icon}</span>
+                    <span class="tab-list-item-name">${esc(t.name)}</span>
+                    <span class="tab-list-item-type">${t.tab_type}</span>
+                    <div class="tab-list-item-actions">
+                        <button class="btn btn-ghost btn-sm" onclick="openTabEditModal(${t.id})">Edit</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openTabEditModal(id) {
+            const tab = tabs.find(t => t.id === id);
+            if (!tab) return;
+            document.getElementById('tab-edit-modal').classList.add('open');
+            document.getElementById('tab-edit-id').value = id;
+            document.getElementById('tab-edit-title').textContent = 'Edit ' + tab.name;
+            document.getElementById('te-name').value = tab.name;
+            document.getElementById('te-icon').value = tab.icon;
+            document.getElementById('te-color').value = tab.color || '#00d4ff';
+            renderTabEditFieldList(tab.fields || []);
+        }
+
+        function closeTabEditModal() { document.getElementById('tab-edit-modal').classList.remove('open'); }
+
+        function renderTabEditFieldList(fields) {
+            const container = document.getElementById('te-fields');
+            container.innerHTML = fields.map((f, i) => fieldRowHtml(f, i)).join('')
+                + `<button class="add-field-btn" onclick="addFieldRowTE()">+ Add Field</button>`;
+        }
+
+        function addFieldRowTE() {
+            const container = document.getElementById('te-fields');
+            const last = container.querySelector('.add-field-btn');
+            const div = document.createElement('div');
+            div.className = 'field-row';
+            div.innerHTML = fieldRowHtml({key:'',label:'',type:'text',required:false}, -1);
+            container.insertBefore(div, last);
+        }
+
+        async function saveTabEdit() {
+            const id = document.getElementById('tab-edit-id').value;
+            const fields = collectFieldRows('te-fields');
+            const res = await fetch(`/api/tabs/${id}`, {
+                method: 'PUT', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({
+                    name: document.getElementById('te-name').value,
+                    icon: document.getElementById('te-icon').value,
+                    color: document.getElementById('te-color').value,
+                    fields
+                })
+            });
+            if (res.ok) { closeTabEditModal(); closeTabsModal(); load(); }
+            else alert('Failed to update tab: ' + await res.text());
+        }
+
+        async function deleteTab() {
+            const id = document.getElementById('tab-edit-id').value;
+            if (!confirm('Delete this tab and ALL its items? This cannot be undone.')) return;
+            const res = await fetch(`/api/tabs/${id}`, { method: 'DELETE' });
+            if (res.status === 400) { alert('Cannot delete the last tab.'); return; }
+            if (!res.ok) { alert('Delete failed: ' + await res.text()); return; }
+            closeTabEditModal(); closeTabsModal(); load();
+        }
+
+        function collectFieldRows(prefix) {
+            const rows = document.querySelectorAll(`#${prefix} .field-row[data-idx]`);
+            return Array.from(rows).map(row => ({
+                key: row.querySelector('.f-key').value.trim(),
+                label: row.querySelector('.f-label').value.trim(),
+                type: row.querySelector('.f-type').value,
+                required: row.querySelector('.f-required').checked
+            })).filter(f => f.key && f.label);
+        }
+
+        // ── Webhooks ─────────────────────────────────────────────────────────────
+        function renderWebhooks() {
+            const list = document.getElementById('wh-list');
+            list.innerHTML = webhooks.map(wh => `
+                <div class="wh-card">
+                    <div class="wh-header">
+                        <span class="wh-name">${esc(wh.name)}</span>
+                        <label class="toggle"><input type="checkbox" ${wh.enabled?'checked':''} onchange="toggleWh('${wh.id}', this.checked)"><span class="toggle-slider"></span></label>
+                    </div>
+                    <div class="wh-url">${esc(wh.url)}</div>
+                    <div class="wh-events">${(wh.events||[]).map(e => `<span class="wh-event">${esc(e)}</span>`).join('')}</div>
+                    <div class="wh-actions">
+                        <button class="btn btn-ghost btn-sm" onclick="editWh('${wh.id}')">Edit</button>
+                        <button class="btn btn-ghost btn-sm" onclick="testWh('${wh.id}')">Test</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteWh('${wh.id}')">Delete</button>
+                    </div>
+                    <div id="wh-test-${wh.id}" style="margin-top:0.3rem"></div>
+                </div>
+            `).join('');
+        }
+
+        function openWhModal(id=null) {
+            document.getElementById('wh-modal').classList.add('open');
+            document.getElementById('wh-edit-id').value = id || '';
+            if (id) {
+                const wh = webhooks.find(w => w.id === id);
+                document.getElementById('wh-name').value = wh?.name || '';
+                document.getElementById('wh-url').value = wh?.url || '';
+                document.querySelectorAll('.wh-ev').forEach(cb => { cb.checked = wh?.events?.includes(cb.value); });
+            } else {
+                document.getElementById('wh-name').value = '';
+                document.getElementById('wh-url').value = '';
+                document.querySelectorAll('.wh-ev').forEach(cb => { cb.checked = true; });
+            }
+        }
+        function closeWhModal() { document.getElementById('wh-modal').classList.remove('open'); }
+        function editWh(id) { openWhModal(id); }
+
+        async function testWh(id) {
+            const el = document.getElementById(`wh-test-${id}`);
+            el.textContent = 'Sending…'; el.className = '';
+            const res = await fetch(`/api/webhooks/${id}/test`, { method: 'POST' });
+            const d = await res.json();
+            if (d.ok) { el.textContent = `✓ OK (HTTP ${d.status})`; el.className = 'test-ok'; }
+            else { el.textContent = `✗ ${d.error}`; el.className = 'test-fail'; }
+        }
+
+        async function toggleWh(id, enabled) {
+            await fetch(`/api/webhooks/${id}`, { method: 'PUT', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ enabled }) });
+            load();
+        }
+
+        async function deleteWh(id) {
+            if (!confirm('Delete this webhook?')) return;
+            await fetch(`/api/webhooks/${id}`, { method: 'DELETE' });
+            load();
+        }
+
+        document.getElementById('wh-form').onsubmit = async (e) => {
+            e.preventDefault();
+            const id = document.getElementById('wh-edit-id').value;
+            const events = Array.from(document.querySelectorAll('.wh-ev:checked')).map(cb => cb.value);
+            const res = await fetch(id ? `/api/webhooks/${id}` : '/api/webhooks', {
+                method: id ? 'PUT' : 'POST', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ name: document.getElementById('wh-name').value, url: document.getElementById('wh-url').value, events })
+            });
+            if (res.ok) { closeWhModal(); load(); }
+        };
+
+        // ── Usage ───────────────────────────────────────────────────────────────
+        function renderUsage() {
+            const empty = document.getElementById('usage-empty');
+            const table = document.getElementById('usage-table');
+            if (!usageLog.length) { table.style.display = 'none'; empty.style.display = 'block'; return; }
+            table.style.display = 'table'; empty.style.display = 'none';
+            document.getElementById('usage-body').innerHTML = usageLog.map(e =>
+                `<tr><td>${new Date(e.taken_at).toLocaleString()}</td><td>${esc(e.brand)} ${esc(e.color)}</td><td>${e.remaining} roll${e.remaining!==1?'s':''} left</td></tr>`
+            ).join('');
+        }
+
+        // ── Boot ────────────────────────────────────────────────────────────────
+        load();
+    </script>
+</body>
+</html>

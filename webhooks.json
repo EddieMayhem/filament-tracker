@@ -1,0 +1,12 @@
+[
+  {
+    "id": "20260430172034",
+    "url": "https://discord.com/api/webhooks/test/foo",
+    "name": "Test Discord",
+    "events": [
+      "filament_added",
+      "filament_deleted"
+    ],
+    "enabled": true
+  }
+]
