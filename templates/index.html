@@ -96,6 +96,8 @@
         .item-card-meta { display: flex; gap: 1rem; margin-top: 0.3rem; flex-wrap: wrap; }
         .item-card-meta-item { font-size: 0.8rem; color: var(--text-dim); }
         .item-card-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+        .item-card-link { font-size: 0.8rem; text-decoration: none; color: var(--accent2); }
+        .item-card-link:hover { text-decoration: underline; }
         .item-thumb { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 8px; flex-shrink: 0; }
         .item-thumb-placeholder { width: 40px; height: 40px; background: var(--surface2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
         .item-card-empty { text-align: center; padding: 2.5rem; color: var(--text-dim); }
@@ -583,15 +585,19 @@
                         : '';
                     const imgUrl = item.image_url;
                     const imgHtml = imgUrl
-                        ? `<img src="/api/proxy/image?url=${encodeURIComponent(imgUrl)}" class="item-thumb" onerror="this.style.display='none'">`
-                        : `<div class="item-thumb-placeholder">${esc(tab.icon||'📦')}</div>`;
+                        ? `<img src="/api/proxy/image?url=${encodeURIComponent(imgUrl)}" class="item-thumb" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">`
+                        : `<div class="item-thumb-placeholder" style="display:${imgUrl?'none':'flex'}">${esc(tab.icon||'📦')}</div>`;
+                    const amaLink = item.amazon_url ? `<a href="${esc(item.amazon_url)}" target="_blank" class="item-card-link">🔗 Amazon</a>` : '';
+                    const dims = item.dimensions ? `<span class="item-card-meta-item">${esc(item.dimensions)}</span>` : '';
 
                     return `<div class="item-card">
                         <div class="item-card-header">
+                            ${imgHtml}
                             <div class="item-card-info" style="flex:1">
-                                <div class="item-card-name">${esc(item.name||'(unnamed)')}</div>
+                                <div class="item-card-name">${esc(item.name||'(unnamed)')} ${amaLink}</div>
                                 <div class="item-card-meta">
                                     <span class="item-card-meta-item">${stock} in stock</span>
+                                    ${dims}
                                     <span class="status-badge status-${esc(item.status||'full')}">${esc(item.status||'full')}</span>
                                 </div>
                             </div>
