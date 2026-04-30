@@ -87,19 +87,18 @@
         .sub-actions { display: flex; gap: 0.3rem; margin-left: auto; flex-shrink: 0; }
 
         /* ── Generic item cards (non-filament tabs) ── */
-        .item-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.5rem; }
+        .item-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; margin-bottom: 0.5rem; display: grid; grid-template-columns: 50px 1fr; gap: 0.75rem; align-items: start; }
         .item-card:hover { border-color: #444; }
-        .item-card-header { display: flex; align-items: center; gap: 0.75rem; }
-        .item-card-thumb { width: 40px; height: 40px; background: var(--surface2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
-        .item-card-info { flex: 1; min-width: 0; }
+        .item-card-body { display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+        .item-card-name-row { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; }
         .item-card-name { font-weight: 600; font-size: 1rem; }
-        .item-card-meta { display: flex; gap: 1rem; margin-top: 0.3rem; flex-wrap: wrap; }
+        .item-card-meta { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center; }
         .item-card-meta-item { font-size: 0.8rem; color: var(--text-dim); }
         .item-card-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
         .item-card-link { font-size: 0.8rem; text-decoration: none; color: var(--accent2); }
         .item-card-link:hover { text-decoration: underline; }
-        .item-thumb { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 8px; flex-shrink: 0; }
-        .item-thumb-placeholder { width: 40px; height: 40px; background: var(--surface2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+        .item-thumb { width: 50px; height: 50px; object-fit: contain; background: #fff; border-radius: 8px; flex-shrink: 0; }
+        .item-thumb-placeholder { width: 50px; height: 50px; background: var(--surface2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.4rem; flex-shrink: 0; }
         .item-card-empty { text-align: center; padding: 2.5rem; color: var(--text-dim); }
         .empty-state { text-align: center; padding: 3rem; color: var(--text-dim); }
 
@@ -585,26 +584,27 @@
                         : '';
                     const imgUrl = item.image_url;
                     const imgHtml = imgUrl
-                        ? `<img src="/api/proxy/image?url=${encodeURIComponent(imgUrl)}" class="item-thumb" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'">`
-                        : `<div class="item-thumb-placeholder" style="display:${imgUrl?'none':'flex'}">${esc(tab.icon||'📦')}</div>`;
+                        ? `<a href="${esc(imgUrl)}" target="_blank"><img src="${esc(imgUrl)}" class="item-thumb" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex'"></a><div class="item-thumb-placeholder" style="display:none">${esc(tab.icon||'📦')}</div>`
+                        : `<div class="item-thumb-placeholder">${esc(tab.icon||'📦')}</div>`;
                     const amaLink = item.amazon_url ? `<a href="${esc(item.amazon_url)}" target="_blank" class="item-card-link">🔗 Amazon</a>` : '';
                     const dims = item.dimensions ? `<span class="item-card-meta-item">${esc(item.dimensions)}</span>` : '';
 
                     return `<div class="item-card">
-                        <div class="item-card-header">
-                            ${imgHtml}
-                            <div class="item-card-info" style="flex:1">
-                                <div class="item-card-name">${esc(item.name||'(unnamed)')} ${amaLink}</div>
-                                <div class="item-card-meta">
-                                    <span class="item-card-meta-item">${stock} in stock</span>
-                                    ${dims}
-                                    <span class="status-badge status-${esc(item.status||'full')}">${esc(item.status||'full')}</span>
+                        ${imgHtml}
+                        <div class="item-card-body">
+                            <div class="item-card-name-row">
+                                <div class="item-card-name">${esc(item.name||'(unnamed)')}</div>
+                                <div class="item-card-actions">
+                                    ${pullBtn}
+                                    <button class="btn btn-ghost btn-sm" data-action="edit-item" data-id="${item.id}" data-slug="${esc(tab.slug)}">Edit</button>
+                                    <button class="btn btn-danger btn-sm" data-action="delete-item" data-id="${item.id}" data-slug="${esc(tab.slug)}">Del</button>
                                 </div>
                             </div>
-                            <div class="item-card-actions">
-                                ${pullBtn}
-                                <button class="btn btn-ghost btn-sm" data-action="edit-item" data-id="${item.id}" data-slug="${esc(tab.slug)}">Edit</button>
-                                <button class="btn btn-danger btn-sm" data-action="delete-item" data-id="${item.id}" data-slug="${esc(tab.slug)}">Del</button>
+                            <div class="item-card-meta">
+                                <span class="item-card-meta-item">${stock} in stock</span>
+                                ${dims}
+                                <span class="status-badge status-${esc(item.status||'full')}">${esc(item.status||'full')}</span>
+                                ${amaLink}
                             </div>
                         </div>
                     </div>`;
