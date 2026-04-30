@@ -3,6 +3,7 @@ import os
 import json
 import re
 import uuid
+import base64
 import threading
 import logging
 from urllib.parse import urlparse
@@ -26,6 +27,13 @@ DEBUG = os.environ.get("FLASK_DEBUG", "false").lower() in ("1", "true", "yes")
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "5000"))
 AMAZON_DOMAIN = os.environ.get("AMAZON_DOMAIN", "www.amazon.de")
+
+# Branding
+BRAND_NAME = os.environ.get("BRAND_NAME", "Inventory System")
+BRAND_ICON = os.environ.get("BRAND_ICON", "📦")
+BRAND_TAGLINE = os.environ.get("BRAND_TAGLINE", "3D print shop inventory management")
+BRAND_ACCENT = os.environ.get("BRAND_ACCENT", "#00d4ff")
+BRAND_ACCENT2 = os.environ.get("BRAND_ACCENT2", "#ff6b35")
 
 # Allowed URL schemes and domains for proxy/webhooks
 ALLOWED_IMAGE_DOMAINS = {"m.media-amazon.com", "images-na.ssl-images-amazon.com",
@@ -188,6 +196,15 @@ def init_db():
         db.execute("CREATE INDEX IF NOT EXISTS idx_filaments_brand_color ON filaments(brand, color)")
         db.commit()
 
+        # ── settings (key-value store for branding etc.) ───────────────────────
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS settings (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            )
+        """)
+        db.commit()
+
         # Seed default Filaments tab if tabs table is empty
         row = db.execute("SELECT COUNT(*) as c FROM tabs").fetchone()
         if row["c"] == 0:
@@ -287,7 +304,7 @@ def _send_webhook(url, event, payload):
         data = json.dumps({"event": event, "payload": payload}).encode()
         req = urllib.request.Request(
             url, data=data,
-            headers={"Content-Type": "application/json", "User-Agent": "InventorySystem/1.0"},
+            headers={"Content-Type": "application/json", "User-Agent": f"{BRAND_NAME.replace(' ', '')}/1.0"},
             method="POST"
         )
         with urllib.request.urlopen(req, timeout=10):
@@ -391,9 +408,79 @@ init_db()
 
 # ─── Root / ───────────────────────────────────────────────────────────────────────
 
+def get_branding():
+    """Get branding settings, falling back to env vars / defaults."""
+    db = get_db()
+    rows = db.execute("SELECT key, value FROM settings WHERE key LIKE 'brand_%'").fetchall()
+    stored = {r["key"]: r["value"] for r in rows}
+    return {
+        "brand_name": stored.get("brand_name", BRAND_NAME),
+        "brand_icon": stored.get("brand_icon", BRAND_ICON),
+        "brand_tagline": stored.get("brand_tagline", BRAND_TAGLINE),
+        "brand_accent": stored.get("brand_accent", BRAND_ACCENT),
+        "brand_accent2": stored.get("brand_accent2", BRAND_ACCENT2),
+        "brand_logo": stored.get("brand_logo", ""),
+    }
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    b = get_branding()
+    return render_template("index.html",
+                           brand_name=b["brand_name"],
+                           brand_icon=b["brand_icon"],
+                           brand_tagline=b["brand_tagline"],
+                           brand_accent=b["brand_accent"],
+                           brand_accent2=b["brand_accent2"],
+                           brand_logo=b["brand_logo"])
+
+@app.route("/api/branding", methods=["GET"])
+@require_auth
+def get_branding_api():
+    return jsonify(get_branding())
+
+@app.route("/api/branding", methods=["PUT"])
+@require_auth
+def update_branding():
+    data = request.get_json(force=True)
+    db = get_db()
+    allowed = ("brand_name", "brand_icon", "brand_tagline", "brand_accent", "brand_accent2")
+    for key in allowed:
+        if key in data:
+            val = str(data[key]).strip()[:200]
+            db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", (key, val))
+    db.commit()
+    return jsonify(get_branding())
+
+@app.route("/api/branding/logo", methods=["POST"])
+@require_auth
+def upload_logo():
+    """Accept a logo image upload (stored as base64 data URI in settings)."""
+    if "logo" not in request.files:
+        return jsonify({"error": "No file provided"}), 400
+    f = request.files["logo"]
+    if not f.filename:
+        return jsonify({"error": "No file selected"}), 400
+    # Validate content type
+    allowed_types = {"image/png", "image/jpeg", "image/gif", "image/svg+xml", "image/webp"}
+    if f.content_type not in allowed_types:
+        return jsonify({"error": f"Invalid image type: {f.content_type}"}), 400
+    # Limit size to 256KB
+    data = f.read(256 * 1024 + 1)
+    if len(data) > 256 * 1024:
+        return jsonify({"error": "Logo must be under 256KB"}), 400
+    data_uri = f"data:{f.content_type};base64,{base64.b64encode(data).decode()}"
+    db = get_db()
+    db.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ("brand_logo", data_uri))
+    db.commit()
+    return jsonify({"brand_logo": data_uri})
+
+@app.route("/api/branding/logo", methods=["DELETE"])
+@require_auth
+def delete_logo():
+    db = get_db()
+    db.execute("DELETE FROM settings WHERE key = 'brand_logo'")
+    db.commit()
+    return jsonify({"ok": True})
 
 # ─── Tab CRUD ───────────────────────────────────────────────────────────────────
 
@@ -917,9 +1004,9 @@ def test_webhook(wh_id):
     if not is_valid_webhook_url(wh["url"]):
         return jsonify({"ok": False, "error": "URL blocked by security policy"}), 400
     try:
-        payload = json.dumps({"event": "test", "message": "Inventory System test ping"}).encode()
+        payload = json.dumps({"event": "test", "message": f"{BRAND_NAME} test ping"}).encode()
         req = urllib.request.Request(wh["url"], data=payload, headers={
-            "Content-Type": "application/json", "User-Agent": "InventorySystem/1.0"}, method="POST")
+            "Content-Type": "application/json", "User-Agent": f"{BRAND_NAME.replace(' ', '')}/1.0"}, method="POST")
         with urllib.request.urlopen(req, timeout=10) as resp:
             return jsonify({"ok": True, "status": resp.status})
     except Exception as e:
