@@ -684,8 +684,11 @@ def get_inventory():
     result = {}
     for tab in tab_list:
         t = dict(tab)
-        t["fields"] = get_tab_fields(tab)
-        if tab["tab_type"] == "filament":
+        fields = get_tab_fields(tab)
+        t["fields"] = fields
+        field_keys = {f["key"] for f in fields}
+        # Only use filaments table if tab_type is filament AND it has brand+color fields
+        if tab["tab_type"] == "filament" and "brand" in field_keys and "color" in field_keys:
             rows = db.execute(
                 "SELECT * FROM filaments WHERE tab_id = ? ORDER BY created_at DESC",
                 (tab["id"],)
@@ -696,7 +699,7 @@ def get_inventory():
                 "SELECT * FROM items WHERE tab_id = ? ORDER BY created_at DESC",
                 (tab["id"],)
             ).fetchall()
-            t["items"] = [item_to_display(dict(r), get_tab_fields(tab)) for r in rows]
+            t["items"] = [item_to_display(dict(r), fields) for r in rows]
         result[tab["slug"]] = t
 
     return jsonify(result)
