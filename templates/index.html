@@ -452,7 +452,9 @@
             const tab = inventory[activeTab];
             if (!tab) return;
 
-            if (tab.tab_type === 'filament') {
+            const fieldKeys = (tab.fields || []).map(f => f.key);
+            const isTrueFilament = tab.tab_type === 'filament' && fieldKeys.includes('brand') && fieldKeys.includes('color');
+            if (isTrueFilament) {
                 renderFilamentPanel(tab);
             } else {
                 renderGenericPanel(tab);
@@ -652,7 +654,7 @@
             document.getElementById('stats-bar').innerHTML = `
                 <div class="stat"><div class="stat-value">${totalRolls}</div><div class="stat-label">Total Units</div></div>
                 <div class="stat"><div class="stat-value">${lowEmpty}</div><div class="stat-label">Low/Empty</div></div>
-                <div class="stat"><div class="stat-value">€${totalValue.toFixed(0)}</div><div class="stat-label">Total Value</div></div>
+                <div class="stat"><div class="stat-value">€${totalValue.toFixed(2).replace('.', ',')}</div><div class="stat-label">Total Value</div></div>
                 <div class="stat"><div class="stat-value">${slugCount}</div><div class="stat-label">Categories</div></div>
             `;
         }
