@@ -809,7 +809,8 @@
             container.innerHTML = '';
 
             fields.forEach(f => {
-                const val = item ? (item[f.key] || (item.extra_data ? (JSON.parse(item.extra_data)[f.key] || '') : '')) : '';
+                const rawVal = item ? (item[f.key] !== undefined ? item[f.key] : (item.extra_data ? JSON.parse(item.extra_data)[f.key] : '')) : '';
+                const val = (rawVal !== null && rawVal !== undefined) ? String(rawVal) : '';
                 const required = f.required ? 'required' : '';
                 const div = document.createElement('div');
                 div.className = 'form-group' + (f.type === 'textarea' ? ' full' : '');
