@@ -89,13 +89,15 @@
         /* ── Generic item cards (non-filament tabs) ── */
         .item-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; margin-bottom: 0.5rem; }
         .item-card:hover { border-color: #444; }
-        .item-card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; }
+        .item-card-header { display: flex; align-items: center; gap: 0.75rem; }
         .item-card-thumb { width: 40px; height: 40px; background: var(--surface2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
-        .item-card-info { flex: 1; }
+        .item-card-info { flex: 1; min-width: 0; }
         .item-card-name { font-weight: 600; font-size: 1rem; }
         .item-card-meta { display: flex; gap: 1rem; margin-top: 0.3rem; flex-wrap: wrap; }
         .item-card-meta-item { font-size: 0.8rem; color: var(--text-dim); }
-        .item-card-actions { display: flex; gap: 0.3rem; }
+        .item-card-actions { display: flex; gap: 0.3rem; flex-shrink: 0; }
+        .item-thumb { width: 40px; height: 40px; object-fit: contain; background: #fff; border-radius: 8px; flex-shrink: 0; }
+        .item-thumb-placeholder { width: 40px; height: 40px; background: var(--surface2); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
         .item-card-empty { text-align: center; padding: 2.5rem; color: var(--text-dim); }
         .empty-state { text-align: center; padding: 3rem; color: var(--text-dim); }
 
@@ -452,9 +454,7 @@
             const tab = inventory[activeTab];
             if (!tab) return;
 
-            const fieldKeys = (tab.fields || []).map(f => f.key);
-            const isTrueFilament = tab.tab_type === 'filament' && fieldKeys.includes('brand') && fieldKeys.includes('color');
-            if (isTrueFilament) {
+            if (tab.tab_type === 'filament') {
                 renderFilamentPanel(tab);
             } else {
                 renderGenericPanel(tab);
@@ -479,6 +479,9 @@
             const empty = document.getElementById(emptyId);
             const countId = tab.slug === 'filaments' ? 'panel-filaments-count' : `panel-${tab.slug}-count`;
             const items = tab.items || [];
+            const fieldKeys = (tab.fields || []).map(f => f.key);
+            const hasBrandColor = fieldKeys.includes('brand') && fieldKeys.includes('color');
+
             if (!items.length) {
                 if (list) list.innerHTML = '';
                 if (empty) empty.style.display = 'block';
@@ -488,91 +491,134 @@
             }
             empty.style.display = 'none';
 
-            // Group by brand+color
-            const groups = {};
-            items.forEach(f => {
-                const key = ((f.brand||'') + '||' + (f.color||'')).toLowerCase();
-                if (!groups[key]) groups[key] = { brand: f.brand, color: f.color, entries: [], image_url: f.image_url, amazon_url: f.amazon_url };
-                groups[key].entries.push(f);
-            });
+            if (hasBrandColor) {
+                // ── Standard filament grouping by brand+color ─────────────────────
+                const groups = {};
+                items.forEach(f => {
+                    const key = ((f.brand||'') + '||' + (f.color||'')).toLowerCase();
+                    if (!groups[key]) groups[key] = { brand: f.brand, color: f.color, entries: [], image_url: f.image_url, amazon_url: f.amazon_url };
+                    groups[key].entries.push(f);
+                });
 
-            const sortedKeys = Object.keys(groups).sort((a, b) => {
-                const aS = groups[a].entries.reduce((s,e) => s + (e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
-                const bS = groups[b].entries.reduce((s,e) => s + (e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
-                return aS - bS;
-            });
+                const sortedKeys = Object.keys(groups).sort((a, b) => {
+                    const aS = groups[a].entries.reduce((s,e) => s + (e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
+                    const bS = groups[b].entries.reduce((s,e) => s + (e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
+                    return aS - bS;
+                });
 
-            list.innerHTML = sortedKeys.map(key => {
-                const g = groups[key];
-                const totalRolls = g.entries.reduce((s,e) => s+(e.quantity||1), 0);
-                const stockRolls = g.entries.reduce((s,e) => s+(e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
-                const totalValue = g.entries.reduce((s,e) => s+(parseFloat(e.total_price)||0), 0);
-                const perRoll = totalRolls > 0 ? (totalValue / totalRolls).toFixed(2) : 0;
-                const imgHtml = g.image_url
-                    ? `<img src="/api/proxy/image?url=${encodeURIComponent(g.image_url)}" class="group-thumb" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
-                    : `<div class="group-no-img">🧵</div>`;
-                const amaHtml = g.amazon_url ? `<a href="${esc(g.amazon_url)}" class="group-amazon" target="_blank">🔗 Amazon</a>` : '';
-                const pullBtn = stockRolls > 0
-                    ? `<button class="btn btn-take btn-sm" data-action="pull" data-key="${esc(key)}">Pull 1 (€${perRoll}/roll)</button>`
-                    : '';
+                list.innerHTML = sortedKeys.map(key => {
+                    const g = groups[key];
+                    const totalUnits = g.entries.reduce((s,e) => s+(e.quantity||1), 0);
+                    const stockUnits = g.entries.reduce((s,e) => s+(e.status!=='used'&&e.status!=='empty'?(e.quantity||1):0), 0);
+                    const totalValue = g.entries.reduce((s,e) => s+(parseFloat(e.total_price)||0), 0);
+                    const perUnit = totalUnits > 0 ? (totalValue / totalUnits).toFixed(2).replace('.', ',') : '0,00';
+                    const imgHtml = g.image_url
+                        ? `<img src="/api/proxy/image?url=${encodeURIComponent(g.image_url)}" class="group-thumb" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">`
+                        : `<div class="group-no-img">${esc(tab.icon||'🧵')}</div>`;
+                    const amaHtml = g.amazon_url ? `<a href="${esc(g.amazon_url)}" class="group-amazon" target="_blank">🔗 Amazon</a>` : '';
+                    const pullBtn = stockUnits > 0
+                        ? `<button class="btn btn-take btn-sm" data-action="pull" data-key="${esc(key)}">Pull 1 (€${perUnit}/u)</button>`
+                        : '';
 
-                const subRows = g.entries.map(e => {
-                    const age = e.purchase_date ? Math.floor((new Date()-new Date(e.purchase_date))/(1000*60*60*24*30)) + ' mo ago' : '—';
-                    const perEntryPrice = (parseFloat(e.total_price||0)/(e.quantity||1)).toFixed(2);
-                    const reorderStyle = e.reorder_date ? (e.reorder_date < today ? 'color:var(--danger)' : 'color:var(--accent2)') : '';
-                    return `<div class="sub-row">
-                        <span class="sub-label"><span class="status-badge status-${esc(e.status)}">${esc(e.status)}</span></span>
-                        <span class="sub-value">${e.quantity||1} roll${(e.quantity||1)!==1?'s':''} · €${parseFloat(e.total_price||0).toFixed(2)} (€${perEntryPrice}/roll)</span>
-                        <span class="sub-value">${esc(e.purchase_date||'')}</span>
-                        <span class="sub-value">${age}</span>
-                        <span class="sub-value" style="${reorderStyle}">${esc(e.reorder_date||'')}</span>
-                        <span class="sub-label">${e.notes?esc(e.notes):''}</span>
-                        <span class="sub-actions">
-                            <button class="btn btn-ghost btn-sm" data-action="edit-filament" data-id="${e.id}">Edit</button>
-                            <button class="btn btn-ghost btn-sm" data-action="scrape" data-id="${e.id}">Scrape</button>
-                            <button class="btn btn-danger btn-sm" data-action="delete-filament" data-id="${e.id}">Del</button>
-                        </span>
+                    const subRows = g.entries.map(e => {
+                        const age = e.purchase_date ? Math.floor((new Date()-new Date(e.purchase_date))/(1000*60*60*24*30)) + ' mo ago' : '—';
+                        const perEntryPrice = (parseFloat(e.total_price||0)/(e.quantity||1)).toFixed(2).replace('.', ',');
+                        const reorderStyle = e.reorder_date ? (e.reorder_date < today ? 'color:var(--danger)' : 'color:var(--accent2)') : '';
+                        return `<div class="sub-row">
+                            <span class="sub-label"><span class="status-badge status-${esc(e.status)}">${esc(e.status)}</span></span>
+                            <span class="sub-value">${e.quantity||1} × €${parseFloat(e.total_price||0).toFixed(2).replace('.', ',')} (€${perEntryPrice}/u)</span>
+                            <span class="sub-value">${esc(e.purchase_date||'')}</span>
+                            <span class="sub-value">${age}</span>
+                            <span class="sub-value" style="${reorderStyle}">${esc(e.reorder_date||'')}</span>
+                            <span class="sub-label">${e.notes?esc(e.notes):''}</span>
+                            <span class="sub-actions">
+                                <button class="btn btn-ghost btn-sm" data-action="edit-filament" data-id="${e.id}">Edit</button>
+                                <button class="btn btn-ghost btn-sm" data-action="scrape" data-id="${e.id}">Scrape</button>
+                                <button class="btn btn-danger btn-sm" data-action="delete-filament" data-id="${e.id}">Del</button>
+                            </span>
+                        </div>`;
+                    }).join('');
+
+                    return `<div class="filament-group" id="grp-${key.replace(/[^a-z0-9]/gi,'_')}">
+                        <div class="group-header" data-action="toggle-group" data-key="${key.replace(/[^a-z0-9]/gi,'_')}">
+                            <span class="group-toggle" id="tg-${key.replace(/[^a-z0-9]/gi,'_')}">▶</span>
+                            ${imgHtml}
+                            <div class="group-info">
+                                <div class="group-name">${esc(g.brand||'')} — ${esc(g.color||'')}</div>
+                                <div class="group-badges">${g.entries.map(e => `<span class="status-badge status-${esc(e.status)}">${esc(e.status)}</span>`).join(' ')}</div>
+                            </div>
+                            <div class="group-meta">${amaHtml}</div>
+                            <div style="text-align:right;flex-shrink:0">
+                                <div class="group-rolls">${stockUnits}<span class="group-rolls-label"> in stock</span></div>
+                            </div>
+                            ${pullBtn}
+                        </div>
+                        <div class="group-entries" id="ent-${key.replace(/[^a-z0-9]/gi,'_')}">${subRows}</div>
                     </div>`;
                 }).join('');
 
-                return `<div class="filament-group" id="grp-${key.replace(/[^a-z0-9]/gi,'_')}">
-                    <div class="group-header" data-action="toggle-group" data-key="${key.replace(/[^a-z0-9]/gi,'_')}">
-                        <span class="group-toggle" id="tg-${key.replace(/[^a-z0-9]/gi,'_')}">▶</span>
-                        ${imgHtml}
-                        <div class="group-info">
-                            <div class="group-name">${esc(g.brand||'')} — ${esc(g.color||'')}</div>
-                            <div class="group-badges">${g.entries.map(e => `<span class="status-badge status-${esc(e.status)}">${esc(e.status)}</span>`).join(' ')}</div>
+                list.querySelectorAll('[data-action="pull"]').forEach(btn => {
+                    btn.onclick = () => pullFromGroup(btn.dataset.key);
+                });
+                list.querySelectorAll('[data-action="edit-filament"]').forEach(btn => {
+                    btn.onclick = () => editFilament(parseInt(btn.dataset.id));
+                });
+                list.querySelectorAll('[data-action="scrape"]').forEach(btn => {
+                    btn.onclick = () => rescrapeImage(parseInt(btn.dataset.id));
+                });
+                list.querySelectorAll('[data-action="delete-filament"]').forEach(btn => {
+                    btn.onclick = () => deleteFilament(parseInt(btn.dataset.id));
+                });
+                list.querySelectorAll('[data-action="toggle-group"]').forEach(header => {
+                    header.onclick = () => toggleGroup(header.dataset.key);
+                });
+
+            } else {
+                // ── Generic filament tab (e.g. Shipping Boxes): flat item cards with pull ──
+                list.innerHTML = items.map(item => {
+                    const stock = item.status !== 'used' && item.status !== 'empty' ? (item.quantity||1) : 0;
+                    const perUnit = item.quantity > 0 ? (parseFloat(item.total_price||0) / item.quantity).toFixed(2).replace('.', ',') : '0,00';
+                    const pullBtn = stock > 0
+                        ? `<button class="btn btn-take btn-sm" data-action="pull-generic" data-id="${item.id}" data-tab="${esc(tab.slug)}">Pull 1 (€${perUnit}/u)</button>`
+                        : '';
+                    const imgUrl = item.image_url;
+                    const imgHtml = imgUrl
+                        ? `<img src="/api/proxy/image?url=${encodeURIComponent(imgUrl)}" class="item-thumb" onerror="this.style.display='none'">`
+                        : `<div class="item-thumb-placeholder">${esc(tab.icon||'📦')}</div>`;
+
+                    return `<div class="item-card">
+                        <div class="item-card-header">
+                            <div class="item-card-info" style="flex:1">
+                                <div class="item-card-name">${esc(item.name||'(unnamed)')}</div>
+                                <div class="item-card-meta">
+                                    <span class="item-card-meta-item">${stock} in stock</span>
+                                    <span class="status-badge status-${esc(item.status||'full')}">${esc(item.status||'full')}</span>
+                                </div>
+                            </div>
+                            <div class="item-card-actions">
+                                ${pullBtn}
+                                <button class="btn btn-ghost btn-sm" data-action="edit-item" data-id="${item.id}" data-slug="${esc(tab.slug)}">Edit</button>
+                                <button class="btn btn-danger btn-sm" data-action="delete-item" data-id="${item.id}" data-slug="${esc(tab.slug)}">Del</button>
+                            </div>
                         </div>
-                        <div class="group-meta">${amaHtml}</div>
-                        <div style="text-align:right;flex-shrink:0">
-                            <div class="group-rolls">${stockRolls}<span class="group-rolls-label"> in stock</span></div>
-                        </div>
-                        ${pullBtn}
-                    </div>
-                    <div class="group-entries" id="ent-${key.replace(/[^a-z0-9]/gi,'_')}">${subRows}</div>
-                </div>`;
-            }).join('');
+                    </div>`;
+                }).join('');
+
+                list.querySelectorAll('[data-action="pull-generic"]').forEach(btn => {
+                    btn.onclick = () => pullGenericItem(parseInt(btn.dataset.id), btn.dataset.tab);
+                });
+                list.querySelectorAll('[data-action="edit-item"]').forEach(btn => {
+                    btn.onclick = () => editItem(parseInt(btn.dataset.id), btn.dataset.slug);
+                });
+                list.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
+                    btn.onclick = () => deleteItem(parseInt(btn.dataset.id), btn.dataset.slug);
+                });
+            }
 
             // Update count badge
             const stockTotal = items.filter(i => i.status !== 'used' && i.status !== 'empty').reduce((s,i) => s+(i.quantity||1), 0);
-            document.getElementById('panel-filaments-count').textContent = stockTotal + ' in stock';
-
-            // Event delegation for filament actions
-            list.querySelectorAll('[data-action="pull"]').forEach(btn => {
-                btn.onclick = () => pullFromGroup(btn.dataset.key);
-            });
-            list.querySelectorAll('[data-action="edit-filament"]').forEach(btn => {
-                btn.onclick = () => editFilament(parseInt(btn.dataset.id));
-            });
-            list.querySelectorAll('[data-action="scrape"]').forEach(btn => {
-                btn.onclick = () => rescrapeImage(parseInt(btn.dataset.id));
-            });
-            list.querySelectorAll('[data-action="delete-filament"]').forEach(btn => {
-                btn.onclick = () => deleteFilament(parseInt(btn.dataset.id));
-            });
-            list.querySelectorAll('[data-action="toggle-group"]').forEach(header => {
-                header.onclick = () => toggleGroup(header.dataset.key);
-            });
+            const countEl = document.getElementById(countId);
+            if (countEl) countEl.textContent = stockTotal + ' in stock';
         }
 
         function toggleGroup(key) {
@@ -664,10 +710,11 @@
 
         // ── Pull from oldest ─────────────────────────────────────────────────────
         async function pullFromGroup(key) {
-            // Find the active filament tab (not hardcoded to 'filaments')
-            const filamentTab = Object.values(inventory).find(t => t.tab_type === 'filament');
-            if (!filamentTab) return;
-            const candidates = filamentTab.items.filter(f => {
+            const tab = inventory[activeTab];
+            if (!tab || tab.tab_type !== 'filament') return;
+            const fieldKeys = (tab.fields || []).map(f => f.key);
+            if (!fieldKeys.includes('brand') || !fieldKeys.includes('color')) return;
+            const candidates = tab.items.filter(f => {
                 const k = ((f.brand||'') + '||' + (f.color||'')).toLowerCase();
                 return k === key && f.status !== 'used' && f.status !== 'empty' && (f.quantity||1) > 0;
             }).sort((a, b) => {
@@ -677,6 +724,14 @@
             });
             if (!candidates.length) return;
             await takeOneFilament(candidates[0].id);
+        }
+
+        async function pullGenericItem(id, tabSlug) {
+            try {
+                const res = await fetch(`/api/items/${id}/take-one`, { method: 'POST' });
+                if (res.ok) load();
+                else alert('Pull failed: ' + (await res.text()));
+            } catch (err) { alert('Network error: ' + err.message); }
         }
 
         async function takeOneFilament(id) {

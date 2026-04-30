@@ -667,6 +667,27 @@ def delete_item(id):
     fire_webhook("item_deleted", {"id": id})
     return "", 204
 
+@app.route("/api/items/<int:id>/take-one", methods=["POST"])
+@require_auth
+def take_one_item(id):
+    """Decrement quantity of an item by 1. Marks status=used when quantity reaches 0."""
+    db = get_db()
+    row = db.execute("SELECT * FROM items WHERE id = ?", (id,)).fetchone()
+    if not row:
+        abort(404, "item not found")
+    row = dict(row)
+    qty = row["quantity"] or 1
+    if qty <= 1:
+        db.execute("UPDATE items SET quantity = 0, status = 'used' WHERE id = ?", (id,))
+    else:
+        db.execute("UPDATE items SET quantity = quantity - 1 WHERE id = ?", (id,))
+        if row["status"] in ("full", "low"):
+            new_status = "low" if qty - 1 <= 5 else "full"
+            db.execute("UPDATE items SET status = ? WHERE id = ?", (new_status, id))
+    db.commit()
+    fire_webhook("item_updated", dict(db.execute("SELECT * FROM items WHERE id = ?", (id,)).fetchone()))
+    return "", 204
+
 # ─── All inventory (unified view for a tab) ────────────────────────────────────
 
 @app.route("/api/inventory", methods=["GET"])
