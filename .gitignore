@@ -8,7 +8,8 @@ __pycache__/
 venv/
 .venv/
 env/
-.env/
+.env
+.env.*
 *.egg-info/
 dist/
 build/
@@ -18,3 +19,4 @@ build/
 *.swo
 *~
 .DS_Store
+webhooks.json

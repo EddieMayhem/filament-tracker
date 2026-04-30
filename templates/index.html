@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -171,11 +171,11 @@
             <p class="subtitle">3D print shop inventory management</p>
         </div>
         <div class="stats" id="stats-bar"></div>
-        <button class="gear-btn" onclick="openTabsModal()" title="Manage Tabs">⚙️</button>
+        <button class="gear-btn" onclick="openTabsModal()" title="Manage Tabs" aria-label="Settings">⚙️</button>
     </div>
 
     <!-- Tab navigation -->
-    <div class="tab-nav" id="tab-nav"></div>
+    <div class="tab-nav" id="tab-nav" role="tablist"></div>
 
     <!-- ── Filaments panel ── -->
     <div class="panel" id="panel-filaments">
@@ -220,7 +220,7 @@
     </div>
 
     <!-- ── Item Add/Edit Modal ── -->
-    <div class="modal-overlay" id="item-modal">
+    <div class="modal-overlay" id="item-modal" role="dialog" aria-modal="true" aria-labelledby="item-modal-title">
         <div class="modal">
             <h2 id="item-modal-title">Add Item</h2>
             <form id="item-form">
@@ -236,9 +236,9 @@
     </div>
 
     <!-- ── Tab Management Modal ── -->
-    <div class="modal-overlay" id="tabs-modal">
+    <div class="modal-overlay" id="tabs-modal" role="dialog" aria-modal="true" aria-labelledby="tabs-modal-title">
         <div class="modal" style="max-width:620px">
-            <h2>Manage Tabs</h2>
+            <h2 id="tabs-modal-title">Manage Tabs</h2>
             <div class="tab-list" id="tab-manage-list"></div>
             <button class="add-field-btn" onclick="openNewTabForm()" id="add-tab-btn">+ Add New Tab</button>
             <div id="new-tab-form" style="display:none;margin-top:1rem">
@@ -268,7 +268,7 @@
     </div>
 
     <!-- ── Tab Edit Modal (inline edit selected tab) ── -->
-    <div class="modal-overlay" id="tab-edit-modal">
+    <div class="modal-overlay" id="tab-edit-modal" role="dialog" aria-modal="true" aria-labelledby="tab-edit-title">
         <div class="modal">
             <h2 id="tab-edit-title">Edit Tab</h2>
             <input type="hidden" id="tab-edit-id">
@@ -288,14 +288,14 @@
     </div>
 
     <!-- ── Webhook Modal ── -->
-    <div class="modal-overlay" id="wh-modal">
+    <div class="modal-overlay" id="wh-modal" role="dialog" aria-modal="true" aria-labelledby="wh-modal-title">
         <div class="modal">
             <h2 id="wh-modal-title">Add Webhook</h2>
             <form id="wh-form">
                 <input type="hidden" id="wh-edit-id">
                 <div class="form-grid">
-                    <div class="form-group full"><label>Name</label><input type="text" id="wh-name" placeholder="My Discord webhook"></div>
-                    <div class="form-group full"><label>URL *</label><input type="url" id="wh-url" required placeholder="https://..."></div>
+                    <div class="form-group full"><label for="wh-name">Name</label><input type="text" id="wh-name" placeholder="My Discord webhook"></div>
+                    <div class="form-group full"><label for="wh-url">URL *</label><input type="url" id="wh-url" required placeholder="https://..."></div>
                     <div class="form-group full"><label>Events</label>
                         <div style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-top:0.3rem;">
                             <label style="display:flex;align-items:center;gap:0.3rem;cursor:pointer;text-transform:none;font-size:0.85rem;"><input type="checkbox" class="wh-ev" value="filament_added" checked> Added</label>
@@ -326,32 +326,41 @@
 
         // ── Load ────────────────────────────────────────────────────────────────
         async function load() {
-            const [inv, w, u] = await Promise.all([
-                fetch('/api/inventory').then(r => r.json()),
-                fetch('/api/webhooks').then(r => r.json()),
-                fetch('/api/usage').then(r => r.json()).catch(() => [])
-            ]);
-            inventory = inv;
-            webhooks = w;
-            usageLog = u;
-            tabs = Object.values(inventory).map(t => ({ id: t.id, name: t.name, slug: t.slug, icon: t.icon, color: t.color, tab_type: t.tab_type, fields: t.fields }));
-            renderTabNav();
-            renderActivePanel();
-            renderWebhooks();
-            renderUsage();
-            updateStats();
+            try {
+                const [inv, w, u] = await Promise.all([
+                    fetch('/api/inventory').then(r => { if (!r.ok) throw new Error('Failed to load inventory'); return r.json(); }),
+                    fetch('/api/webhooks').then(r => { if (!r.ok) throw new Error('Failed to load webhooks'); return r.json(); }),
+                    fetch('/api/usage').then(r => r.ok ? r.json() : []).catch(() => [])
+                ]);
+                inventory = inv;
+                webhooks = w;
+                usageLog = u;
+                tabs = Object.values(inventory).map(t => ({ id: t.id, name: t.name, slug: t.slug, icon: t.icon, color: t.color, tab_type: t.tab_type, fields: t.fields }));
+                renderTabNav();
+                renderActivePanel();
+                renderWebhooks();
+                renderUsage();
+                updateStats();
+            } catch (err) {
+                console.error('Load failed:', err);
+            }
         }
 
         // ── Tab navigation ──────────────────────────────────────────────────────
         function renderTabNav() {
             const nav = document.getElementById('tab-nav');
-            const tabBar = ['filaments', 'usage', 'webhooks'];
             nav.innerHTML = tabs.map(t => {
                 const cls = activeTab === t.slug ? 'tab-pill active' : 'tab-pill';
-                return `<div class="${cls}" data-tab="${t.slug}" onclick="switchTab('${t.slug}')">
-                    <span>${t.icon}</span><span>${t.name}</span>
+                return `<div class="${cls}" data-tab="${esc(t.slug)}" role="tab" aria-selected="${activeTab === t.slug}" tabindex="0">
+                    <span>${esc(t.icon)}</span><span>${esc(t.name)}</span>
                 </div>`;
-            }).join('') + `<div class="tab-add-btn" onclick="openTabsModal()">+ Tab</div>`;
+            }).join('') + `<div class="tab-add-btn" onclick="openTabsModal()" role="button" tabindex="0">+ Tab</div>`;
+
+            // Use event delegation for tab clicks
+            nav.querySelectorAll('.tab-pill[data-tab]').forEach(pill => {
+                pill.onclick = () => switchTab(pill.dataset.tab);
+                pill.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); switchTab(pill.dataset.tab); } };
+            });
 
             // Also pre-build extra panels for non-filament tabs
             buildExtraPanels();
@@ -368,14 +377,15 @@
                     <div class="panel-header">
                         <div style="display:flex;align-items:center;gap:0.75rem">
                             <span class="panel-title">${esc(t.name)}</span>
-                            <span class="item-count-badge" id="panel-${t.slug}-count"></span>
+                            <span class="item-count-badge" id="panel-${esc(t.slug)}-count"></span>
                         </div>
-                        <button class="btn btn-primary" onclick="openItemModal('${t.slug}')">+ Add ${esc(t.name)}</button>
+                        <button class="btn btn-primary" data-add-slug="${esc(t.slug)}">+ Add ${esc(t.name)}</button>
                     </div>
-                    <div id="panel-${t.slug}-list"></div>
-                    <div id="panel-${t.slug}-empty" class="item-card-empty" style="display:none"><p>No items in this category yet.</p></div>
+                    <div id="panel-${esc(t.slug)}-list"></div>
+                    <div id="panel-${esc(t.slug)}-empty" class="item-card-empty" style="display:none"><p>No items in this category yet.</p></div>
                 `;
                 container.appendChild(div);
+                div.querySelector('[data-add-slug]').onclick = () => openItemModal(t.slug);
             });
         }
 
@@ -452,35 +462,35 @@
                     : `<div class="group-no-img">🧵</div>`;
                 const amaHtml = g.amazon_url ? `<a href="${esc(g.amazon_url)}" class="group-amazon" target="_blank">🔗 Amazon</a>` : '';
                 const pullBtn = stockRolls > 0
-                    ? `<button class="btn btn-take btn-sm" onclick="pullFromGroup('${key}')">Pull 1 (€${perRoll}/roll)</button>`
+                    ? `<button class="btn btn-take btn-sm" data-action="pull" data-key="${esc(key)}">Pull 1 (€${perRoll}/roll)</button>`
                     : '';
 
                 const subRows = g.entries.map(e => {
                     const age = e.purchase_date ? Math.floor((new Date()-new Date(e.purchase_date))/(1000*60*60*24*30)) + ' mo ago' : '—';
                     const perEntryPrice = (parseFloat(e.total_price||0)/(e.quantity||1)).toFixed(2);
-                    const reorderCls = e.reorder_date ? (e.reorder_date < today ? 'style="color:var(--danger)"' : 'style="color:var(--accent2)"') : '';
+                    const reorderStyle = e.reorder_date ? (e.reorder_date < today ? 'color:var(--danger)' : 'color:var(--accent2)') : '';
                     return `<div class="sub-row">
-                        <span class="sub-label">${e.status}</span>
+                        <span class="sub-label"><span class="status-badge status-${esc(e.status)}">${esc(e.status)}</span></span>
                         <span class="sub-value">${e.quantity||1} roll${(e.quantity||1)!==1?'s':''} · €${parseFloat(e.total_price||0).toFixed(2)} (€${perEntryPrice}/roll)</span>
-                        <span class="sub-value">${e.purchase_date||''}</span>
+                        <span class="sub-value">${esc(e.purchase_date||'')}</span>
                         <span class="sub-value">${age}</span>
-                        <span class="sub-value" ${reorderCls}>${e.reorder_date||''}</span>
+                        <span class="sub-value" style="${reorderStyle}">${esc(e.reorder_date||'')}</span>
                         <span class="sub-label">${e.notes?esc(e.notes):''}</span>
                         <span class="sub-actions">
-                            <button class="btn btn-ghost btn-sm" onclick="editFilament(${e.id})">Edit</button>
-                            <button class="btn btn-ghost btn-sm" onclick="rescrapeImage(${e.id})">Scrape</button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteFilament(${e.id})">Del</button>
+                            <button class="btn btn-ghost btn-sm" data-action="edit-filament" data-id="${e.id}">Edit</button>
+                            <button class="btn btn-ghost btn-sm" data-action="scrape" data-id="${e.id}">Scrape</button>
+                            <button class="btn btn-danger btn-sm" data-action="delete-filament" data-id="${e.id}">Del</button>
                         </span>
                     </div>`;
                 }).join('');
 
                 return `<div class="filament-group" id="grp-${key.replace(/[^a-z0-9]/gi,'_')}">
-                    <div class="group-header" onclick="toggleGroup('${key.replace(/[^a-z0-9]/gi,'_')}')">
+                    <div class="group-header" data-action="toggle-group" data-key="${key.replace(/[^a-z0-9]/gi,'_')}">
                         <span class="group-toggle" id="tg-${key.replace(/[^a-z0-9]/gi,'_')}">▶</span>
                         ${imgHtml}
                         <div class="group-info">
                             <div class="group-name">${esc(g.brand||'')} — ${esc(g.color||'')}</div>
-                            <div class="group-badges">${g.entries.map(e => `<span class="status-badge status-${e.status}">${e.status}</span>`).join(' ')}</div>
+                            <div class="group-badges">${g.entries.map(e => `<span class="status-badge status-${esc(e.status)}">${esc(e.status)}</span>`).join(' ')}</div>
                         </div>
                         <div class="group-meta">${amaHtml}</div>
                         <div style="text-align:right;flex-shrink:0">
@@ -495,6 +505,23 @@
             // Update count badge
             const stockTotal = items.filter(i => i.status !== 'used' && i.status !== 'empty').reduce((s,i) => s+(i.quantity||1), 0);
             document.getElementById('panel-filaments-count').textContent = stockTotal + ' in stock';
+
+            // Event delegation for filament actions
+            list.querySelectorAll('[data-action="pull"]').forEach(btn => {
+                btn.onclick = () => pullFromGroup(btn.dataset.key);
+            });
+            list.querySelectorAll('[data-action="edit-filament"]').forEach(btn => {
+                btn.onclick = () => editFilament(parseInt(btn.dataset.id));
+            });
+            list.querySelectorAll('[data-action="scrape"]').forEach(btn => {
+                btn.onclick = () => rescrapeImage(parseInt(btn.dataset.id));
+            });
+            list.querySelectorAll('[data-action="delete-filament"]').forEach(btn => {
+                btn.onclick = () => deleteFilament(parseInt(btn.dataset.id));
+            });
+            list.querySelectorAll('[data-action="toggle-group"]').forEach(header => {
+                header.onclick = () => toggleGroup(header.dataset.key);
+            });
         }
 
         function toggleGroup(key) {
@@ -528,30 +555,42 @@
                 let metaHtml = `
                     <span class="item-card-meta-item">${item.quantity||1} in stock</span>
                     ${perItemPrice ? `<span class="item-card-meta-item">€${perItemPrice}/item</span>` : ''}
-                    <span class="status-badge status-${item.status||'full'}">${item.status||'full'}</span>
+                    <span class="status-badge status-${esc(item.status||'full')}">${esc(item.status||'full')}</span>
                 `;
 
                 // Show extra_data fields
-                const extra = item.extra_data || (item._extra || {});
-                fields.filter(f => f.key !== 'name' && f.key !== 'quantity' && f.key !== 'total_price' && f.key !== 'status').forEach(f => {
-                    const val = extra[f.key] || item[f.key];
+                const extra = (typeof item.extra_data === 'string' ? (() => { try { return JSON.parse(item.extra_data); } catch(e) { return {}; } })() : item.extra_data) || {};
+                fields.filter(fld => fld.key !== 'name' && fld.key !== 'quantity' && fld.key !== 'total_price' && fld.key !== 'status').forEach(fld => {
+                    const val = extra[fld.key] || item[fld.key];
                     if (val) metaHtml += `<span class="item-card-meta-item">${esc(String(val))}</span>`;
                 });
 
+                // Determine display name
+                const displayName = nameField ? (extra[nameField.key] || item[nameField.key] || item.name) : (item.name || ((item.brand||'') + ' ' + (item.color||'')).trim());
+                const safeSlug = esc(tab.slug);
+
                 return `<div class="item-card">
                     <div class="item-card-header">
-                        <div class="item-card-thumb">${tab.icon||'📦'}</div>
+                        <div class="item-card-thumb">${esc(tab.icon||'📦')}</div>
                         <div class="item-card-info">
-                            <div class="item-card-name">${esc(nameField ? (extra[f.key] || item[f.key] || item.name) : (item.name || item.brand + ' ' + item.color))}</div>
+                            <div class="item-card-name">${esc(displayName)}</div>
                             <div class="item-card-meta">${metaHtml}</div>
                         </div>
                         <div class="item-card-actions">
-                            <button class="btn btn-ghost btn-sm" onclick="editItem(${item.id},'${tab.slug}')">Edit</button>
-                            <button class="btn btn-danger btn-sm" onclick="deleteItem(${item.id},'${tab.slug}')">Del</button>
+                            <button class="btn btn-ghost btn-sm" data-action="edit-item" data-id="${item.id}" data-slug="${safeSlug}">Edit</button>
+                            <button class="btn btn-danger btn-sm" data-action="delete-item" data-id="${item.id}" data-slug="${safeSlug}">Del</button>
                         </div>
                     </div>
                 </div>`;
             }).join('');
+
+            // Attach event listeners via delegation instead of inline onclick
+            listEl.querySelectorAll('[data-action="edit-item"]').forEach(btn => {
+                btn.onclick = () => editItem(parseInt(btn.dataset.id), btn.dataset.slug);
+            });
+            listEl.querySelectorAll('[data-action="delete-item"]').forEach(btn => {
+                btn.onclick = () => deleteItem(parseInt(btn.dataset.id), btn.dataset.slug);
+            });
         }
 
         // ── Stats ────────────────────────────────────────────────────────────────
@@ -574,9 +613,10 @@
 
         // ── Pull from oldest ─────────────────────────────────────────────────────
         async function pullFromGroup(key) {
-            const tab = inventory['filaments'];
-            if (!tab) return;
-            const candidates = tab.items.filter(f => {
+            // Find the active filament tab (not hardcoded to 'filaments')
+            const filamentTab = Object.values(inventory).find(t => t.tab_type === 'filament');
+            if (!filamentTab) return;
+            const candidates = filamentTab.items.filter(f => {
                 const k = ((f.brand||'') + '||' + (f.color||'')).toLowerCase();
                 return k === key && f.status !== 'used' && f.status !== 'empty' && (f.quantity||1) > 0;
             }).sort((a, b) => {
@@ -589,15 +629,19 @@
         }
 
         async function takeOneFilament(id) {
-            const res = await fetch(`/api/filaments/${id}/take-one`, { method: 'POST' });
-            if (res.ok) load();
-            else alert('Pull failed: ' + res.status);
+            try {
+                const res = await fetch(`/api/filaments/${id}/take-one`, { method: 'POST' });
+                if (res.ok) load();
+                else alert('Pull failed: ' + (await res.text()));
+            } catch (err) { alert('Network error: ' + err.message); }
         }
 
         async function rescrapeImage(id) {
-            const res = await fetch(`/api/filaments/${id}/scrape-image`, { method: 'POST' });
-            if (res.ok) load();
-            else alert('Scrape failed: ' + res.status);
+            try {
+                const res = await fetch(`/api/filaments/${id}/scrape-image`, { method: 'POST' });
+                if (res.ok) load();
+                else alert('Scrape failed: ' + (await res.text()));
+            } catch (err) { alert('Network error: ' + err.message); }
         }
 
         // ── Filament CRUD ───────────────────────────────────────────────────────
@@ -609,8 +653,11 @@
 
         async function deleteFilament(id) {
             if (!confirm('Delete this entry?')) return;
-            await fetch(`/api/filaments/${id}`, { method: 'DELETE' });
-            load();
+            try {
+                const res = await fetch(`/api/filaments/${id}`, { method: 'DELETE' });
+                if (res.ok) load();
+                else alert('Delete failed: ' + (await res.text()));
+            } catch (err) { alert('Network error: ' + err.message); }
         }
 
         // ── Generic item CRUD ───────────────────────────────────────────────────
@@ -622,8 +669,11 @@
 
         async function deleteItem(id, tabSlug) {
             if (!confirm('Delete this item?')) return;
-            await fetch(`/api/items/${id}`, { method: 'DELETE' });
-            load();
+            try {
+                const res = await fetch(`/api/items/${id}`, { method: 'DELETE' });
+                if (res.ok) load();
+                else alert('Delete failed: ' + (await res.text()));
+            } catch (err) { alert('Network error: ' + err.message); }
         }
 
         // ── Item modal ──────────────────────────────────────────────────────────
@@ -776,10 +826,23 @@
         function addFieldRow() {
             const container = document.getElementById('nt-fields');
             const last = container.querySelector('.add-field-btn');
-            const div = document.createElement('div');
-            div.className = 'field-row';
-            div.innerHTML = fieldRowHtml({key:'',label:'',type:'text',required:false}, -1);
-            container.insertBefore(div, last);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'field-row';
+            wrapper.setAttribute('data-idx', '-1');
+            wrapper.innerHTML = `
+                <input type="text" placeholder="Key (e.g. brand)" value="" class="f-key">
+                <input type="text" placeholder="Label" value="" class="f-label">
+                <select class="f-type">
+                    <option value="text">Text</option>
+                    <option value="number">Number</option>
+                    <option value="date">Date</option>
+                    <option value="url">URL</option>
+                    <option value="textarea">Textarea</option>
+                </select>
+                <input type="checkbox" class="f-required" title="Required">
+                <button class="field-rm" onclick="removeFieldRow(this)">×</button>
+            `;
+            container.insertBefore(wrapper, last);
         }
 
         function removeFieldRow(btn) {
@@ -841,10 +904,23 @@
         function addFieldRowTE() {
             const container = document.getElementById('te-fields');
             const last = container.querySelector('.add-field-btn');
-            const div = document.createElement('div');
-            div.className = 'field-row';
-            div.innerHTML = fieldRowHtml({key:'',label:'',type:'text',required:false}, -1);
-            container.insertBefore(div, last);
+            const wrapper = document.createElement('div');
+            wrapper.className = 'field-row';
+            wrapper.setAttribute('data-idx', '-1');
+            wrapper.innerHTML = `
+                <input type="text" placeholder="Key (e.g. brand)" value="" class="f-key">
+                <input type="text" placeholder="Label" value="" class="f-label">
+                <select class="f-type">
+                    <option value="text">Text</option>
+                    <option value="number">Number</option>
+                    <option value="date">Date</option>
+                    <option value="url">URL</option>
+                    <option value="textarea">Textarea</option>
+                </select>
+                <input type="checkbox" class="f-required" title="Required">
+                <button class="field-rm" onclick="removeFieldRow(this)">×</button>
+            `;
+            container.insertBefore(wrapper, last);
         }
 
         async function saveTabEdit() {
