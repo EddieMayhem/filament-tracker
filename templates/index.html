@@ -763,6 +763,9 @@
                     const cb = f.key === 'amazon_url' ? 'onAmazonUrlChange()' : f.key === 'image_url' ? 'onImageUrlChange()' : '';
                     div.innerHTML = `<label>${f.label}${f.required?' *':''}</label>
                         <input type="url" id="fld-${f.key}" value="${esc(val)}" ${required} onchange="${cb}">`;
+                } else if (f.type === 'number') {
+                    div.innerHTML = `<label>${f.label}${f.required?' *':''}</label>
+                        <input type="text" inputmode="decimal" id="fld-${f.key}" value="${esc(val)}" ${required}>`;
                 } else {
                     div.innerHTML = `<label>${f.label}${f.required?' *':''}</label>
                         <input type="${f.type||'text'}" id="fld-${f.key}" value="${esc(val)}" ${required}>`;
