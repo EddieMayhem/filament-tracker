@@ -811,9 +811,12 @@
         document.getElementById('item-form').onsubmit = async (e) => {
             e.preventDefault();
             const id = document.getElementById('item-edit-id').value;
-            const source = document.getElementById('item-edit-source').value;
             const tab = inventory[activeTab] || Object.values(inventory)[0];
             const fields = tab.fields || [];
+
+            // Determine source dynamically: use /api/filaments only if tab has brand+color fields
+            const hasFilamentFields = fields.some(f => f.key === 'brand') && fields.some(f => f.key === 'color');
+            const source = tab.tab_type === 'filament' && hasFilamentFields ? 'filament' : 'item';
 
             // Collect all field values as a flat object
             const body = { tab_id: tab.id };
@@ -825,7 +828,7 @@
             const url = source === 'filament'
                 ? (id ? `/api/filaments/${id}` : '/api/filaments')
                 : (id ? `/api/items/${id}` : '/api/items');
-            const method = id ? (source === 'filament' ? 'PUT' : 'PUT') : 'POST';
+            const method = id ? 'PUT' : 'POST';
 
             const res = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) });
             if (res.ok) { closeItemModal(); load(); }
