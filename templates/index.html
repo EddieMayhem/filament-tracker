@@ -413,7 +413,7 @@
         function buildExtraPanels() {
             const container = document.getElementById('extra-panels');
             container.innerHTML = '';
-            tabs.filter(t => t.tab_type !== 'filament').forEach(t => {
+            tabs.filter(t => t.slug !== 'filaments').forEach(t => {
                 const div = document.createElement('div');
                 div.className = 'panel';
                 div.id = `panel-${t.slug}`;
@@ -471,12 +471,17 @@
 
         // ── Filament panel ───────────────────────────────────────────────────────
         function renderFilamentPanel(tab) {
-            const list = document.getElementById('filament-list');
-            const empty = document.getElementById('filament-empty');
+            const listId = tab.slug === 'filaments' ? 'filament-list' : `panel-${tab.slug}-list`;
+            const emptyId = tab.slug === 'filaments' ? 'filament-empty' : `panel-${tab.slug}-empty`;
+            const list = document.getElementById(listId);
+            const empty = document.getElementById(emptyId);
+            const countId = tab.slug === 'filaments' ? 'panel-filaments-count' : `panel-${tab.slug}-count`;
             const items = tab.items || [];
             if (!items.length) {
-                list.innerHTML = ''; empty.style.display = 'block';
-                document.getElementById('panel-filaments-count').textContent = '';
+                if (list) list.innerHTML = '';
+                if (empty) empty.style.display = 'block';
+                const c = document.getElementById(countId);
+                if (c) c.textContent = '';
                 return;
             }
             empty.style.display = 'none';
